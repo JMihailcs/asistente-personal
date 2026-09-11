@@ -42,3 +42,14 @@ def test_configure_tracing_uses_phoenix_endpoint_from_config(monkeypatch):
 
     assert captured["endpoint"] == "http://phoenix:6006/v1/traces"
     observability._tracing_configured = False
+
+
+def test_configure_tracing_instruments_pydantic_ai_agents():
+    from pydantic_ai import Agent
+
+    observability._tracing_configured = False
+    with patch("phoenix.otel.register"), patch.object(Agent, "instrument_all") as mock_instrument:
+        observability.configure_tracing()
+
+    mock_instrument.assert_called_once()
+    observability._tracing_configured = False
