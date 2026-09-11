@@ -38,7 +38,14 @@ def _build_model(model_name: str = DEFAULT_MODEL_NAME) -> OpenAIChatModel:
 
 
 def build_agent(model_name: str = DEFAULT_MODEL_NAME) -> Agent:
-    agent = Agent(_build_model(model_name), system_prompt=SYSTEM_PROMPT)
+    # temperature=0 hace determinista la decisión de invocar una herramienta:
+    # con muestreo por defecto, este modelo de 12B a veces alucina resultados
+    # o inventa texto en vez de llamar a la tool correspondiente.
+    agent = Agent(
+        _build_model(model_name),
+        system_prompt=SYSTEM_PROMPT,
+        model_settings={"temperature": 0.0},
+    )
     for registered in registry.all_tools().values():
         agent.tool_plain(registered.func)
     return agent
