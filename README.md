@@ -77,6 +77,16 @@ Pídele a Mikha que guarde o busque notas ("Guarda una nota titulada...",
 Markdown en `~/Obsidian/Mikha` (o la ruta en `MIKHA_VAULT_PATH`), listos
 para abrir directamente en la app de Obsidian.
 
+## Tareas
+
+Pídele a Mikha que agregue, liste o complete tareas, o que te diga qué
+listas de tareas tenés ("Agrega la tarea... a mi lista de...", "Qué
+tareas tengo en mi lista de...", "Marca como hecha la tarea..."). Las
+listas se organizan por tema o meta (ej. "Casa", "Idea de negocio") y
+se guardan como checkboxes de Markdown en `<vault>/Tareas/<lista>.md`.
+Si no le decís a qué lista pertenece una tarea, Mikha te va a preguntar
+en vez de adivinar.
+
 ## Configuración por variables de entorno
 
 | Variable | Default | Uso |
@@ -96,4 +106,4 @@ pytest                        # todo
 ## Próximas fases
 
 Ver `docs/superpowers/specs/` para el contexto completo del proyecto
-(gestión de tareas, calendario, interfaz web, evals/guardrails).
+(calendario, interfaz web, evals/guardrails).

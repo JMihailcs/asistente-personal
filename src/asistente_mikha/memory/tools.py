@@ -80,6 +80,23 @@ def tasks(
     text: str | None = None,
 ) -> dict:
     """Agrega, lista o completa tareas de una lista por tema, o lista todas las listas existentes."""
+    required: list[str] = []
+    if action == "add":
+        if not list_name:
+            required.append("list_name")
+        if not text:
+            required.append("text")
+    elif action == "list":
+        if not list_name:
+            required.append("list_name")
+    elif action == "complete":
+        if not list_name:
+            required.append("list_name")
+        if not text:
+            required.append("text")
+    if required:
+        return {"status": "missing_argument", "required": required}
+
     vault_path = get_vault_path()
     if action == "add":
         path = add_task(vault_path, list_name or "", text or "")

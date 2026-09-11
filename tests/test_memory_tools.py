@@ -102,3 +102,43 @@ def test_tasks_router_list_lists(tmp_path, monkeypatch):
     result = memory_tools.tasks(action="list_lists")
 
     assert result == {"lists": ["Casa"]}
+
+
+def test_tasks_router_add_without_text_returns_missing_argument(tmp_path, monkeypatch):
+    monkeypatch.setenv("MIKHA_VAULT_PATH", str(tmp_path))
+
+    result = memory_tools.tasks(action="add", list_name="Casa")
+
+    assert result == {"status": "missing_argument", "required": ["text"]}
+
+
+def test_tasks_router_complete_without_text_returns_missing_argument(tmp_path, monkeypatch):
+    monkeypatch.setenv("MIKHA_VAULT_PATH", str(tmp_path))
+
+    result = memory_tools.tasks(action="complete", list_name="Casa")
+
+    assert result == {"status": "missing_argument", "required": ["text"]}
+
+
+def test_tasks_router_list_without_list_name_returns_missing_argument(tmp_path, monkeypatch):
+    monkeypatch.setenv("MIKHA_VAULT_PATH", str(tmp_path))
+
+    result = memory_tools.tasks(action="list")
+
+    assert result == {"status": "missing_argument", "required": ["list_name"]}
+
+
+def test_tasks_router_complete_without_text_does_not_complete_any_task(tmp_path, monkeypatch):
+    monkeypatch.setenv("MIKHA_VAULT_PATH", str(tmp_path))
+    memory_tools.tasks(action="add", list_name="Casa", text="lavar los platos")
+    memory_tools.tasks(action="add", list_name="Casa", text="sacar la basura")
+
+    result = memory_tools.tasks(action="complete", list_name="Casa")
+
+    assert result == {"status": "missing_argument", "required": ["text"]}
+
+    listed = memory_tools.tasks(action="list", list_name="Casa")
+    assert listed["tasks"] == [
+        {"text": "lavar los platos", "done": False},
+        {"text": "sacar la basura", "done": False},
+    ]

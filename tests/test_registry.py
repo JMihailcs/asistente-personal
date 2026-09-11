@@ -1,5 +1,6 @@
 import pytest
 
+from asistente_mikha.tools import registry as registry_module
 from asistente_mikha.tools.registry import (
     ToolRisk,
     tool,
@@ -11,9 +12,11 @@ from asistente_mikha.tools.registry import (
 
 @pytest.fixture(autouse=True)
 def _clean_registry():
+    snapshot = all_tools()
     clear_registry_for_tests()
     yield
     clear_registry_for_tests()
+    registry_module._REGISTRY.update(snapshot)
 
 
 def test_tool_decorator_registers_function_with_metadata():
