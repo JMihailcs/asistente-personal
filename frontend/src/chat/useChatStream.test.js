@@ -1,0 +1,106 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { useChatStream } from './useChatStream.js';
+
+function sseResponse(chunks) {
+  const encoder = new TextEncoder();
+  return {
+    ok: true,
+    body: {
+      getReader() {
+        let i = 0;
+        return {
+          read: async () =>
+            i < chunks.length
+              ? { done: false, value: encoder.encode(chunks[i++]) }
+              : { done: true, value: undefined },
+          releaseLock() {},
+        };
+      },
+    },
+  };
+}
+
+beforeEach(() => {
+  vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
+  vi.stubGlobal('cancelAnimationFrame', vi.fn());
+});
+
+describe('useChatStream', () => {
+  it('acumula los tokens y cierra con el evento done', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        sseResponse([
+          'event: token\ndata: {"text":"Hola "}\n\n',
+          'event: token\ndata: {"text":"mundo"}\n\n',
+          'event: done\ndata: {"reply":"Hola mundo","pending_action_ids":[],"duration_seconds":1.2,"queried_at":"2026-09-11T10:00:00"}\n\n',
+        ]),
+      ),
+    );
+
+    const { result } = renderHook(() => useChatStream());
+    await act(async () => {
+      await result.current.send('hola');
+    });
+
+    await waitFor(() => expect(result.current.state).toBe('idle'));
+    const last = result.current.messages.at(-1);
+    expect(last.role).toBe('assistant');
+    expect(last.text).toBe('Hola mundo');
+    expect(last.durationSeconds).toBe(1.2);
+    expect(last.incomplete).toBeFalsy();
+  });
+
+  it('pasa a awaiting cuando el turno deja una accion pendiente', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        sseResponse([
+          'event: token\ndata: {"text":"listo"}\n\n',
+          'event: done\ndata: {"reply":"listo","pending_action_ids":["abc123"],"duration_seconds":1,"queried_at":"2026-09-11T10:00:00"}\n\n',
+        ]),
+      ),
+    );
+
+    const { result } = renderHook(() => useChatStream());
+    await act(async () => {
+      await result.current.send('reinicia wireplumber');
+    });
+
+    await waitFor(() => expect(result.current.state).toBe('awaiting'));
+  });
+
+  it('marca el mensaje como incompleto si el stream corta sin done', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => sseResponse(['event: token\ndata: {"text":"a medio "}\n\n'])),
+    );
+
+    const { result } = renderHook(() => useChatStream());
+    await act(async () => {
+      await result.current.send('hola');
+    });
+
+    await waitFor(() => expect(result.current.state).toBe('idle'));
+    expect(result.current.messages.at(-1).incomplete).toBe(true);
+    expect(result.current.error).toBeTruthy();
+  });
+
+  it('reporta error si el backend no responde', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('sin conexion');
+      }),
+    );
+
+    const { result } = renderHook(() => useChatStream());
+    await act(async () => {
+      await result.current.send('hola');
+    });
+
+    await waitFor(() => expect(result.current.error).toBeTruthy());
+    expect(result.current.state).toBe('idle');
+  });
+});

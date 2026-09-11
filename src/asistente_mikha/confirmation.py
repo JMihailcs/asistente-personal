@@ -83,6 +83,16 @@ class PendingActionStore:
             action.status = ActionStatus.EXPIRED
         return action
 
+    def list_pending(self) -> list[PendingAction]:
+        # Se pasa por get() a proposito: es quien marca como expiradas las
+        # acciones que pasaron su TTL, asi que una expirada nunca se lista.
+        return [
+            action
+            for action_id in list(self._actions)
+            if (action := self.get(action_id)) is not None
+            and action.status == ActionStatus.PENDING
+        ]
+
     def reject(self, action_id: str) -> PendingAction:
         action = self._require_pending(action_id)
         action.status = ActionStatus.REJECTED

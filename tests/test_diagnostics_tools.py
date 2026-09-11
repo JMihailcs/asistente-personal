@@ -38,6 +38,17 @@ def test_get_gpu_status_returns_structured_result():
         assert result["vram_total_bytes"] > 0
 
 
+def test_get_gpu_status_reports_unavailable_when_no_device_in_sysfs(monkeypatch):
+    from asistente_mikha.tools import diagnostics as diagnostics_module
+
+    monkeypatch.setattr(diagnostics_module, "DRM_DEVICES_GLOB", "/sys/class/drm/no-existe*/device")
+
+    result = get_gpu_status()
+
+    assert result["available"] is False
+    assert "reason" in result
+
+
 def test_diagnostics_router_dispatches_to_each_check():
     assert set(diagnostics(check="ram").keys()) == set(get_ram_usage().keys())
     assert diagnostics(check="disk", path="/")["path"] == "/"

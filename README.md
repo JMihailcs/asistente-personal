@@ -13,6 +13,8 @@ vault de Obsidian, y trazas OpenTelemetry hacia Phoenix.
   `nomic-embed-text` (`ollama pull nomic-embed-text`)
 - (Opcional, para ver trazas) `pip install arize-phoenix` y `phoenix serve`
 - (Opcional, para correr con Docker) Docker + Docker Compose
+- (Solo para desarrollar el frontend) Node 22+ — el build de
+  produccion lo hace el Dockerfile por su cuenta
 
 ## Instalación
 
@@ -103,7 +105,27 @@ pytest -m integration         # requieren `ollama serve` con los modelos 'defaul
 pytest                        # todo
 ```
 
+## Interfaz web
+
+El dashboard se sirve desde el mismo backend en `http://localhost:8000`:
+el chat con streaming, el orbe que vibra mientras el asistente responde,
+y paneles con el estado de la maquina, tus tareas, tus notas recientes y
+las acciones esperando confirmacion.
+
+Para desarrollar el frontend con recarga en vivo, con el backend
+corriendo aparte:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Vite levanta en otro puerto y hace proxy de la API al backend en el 8000.
+El build de produccion no hay que correrlo a mano: el Dockerfile tiene una
+etapa de Node que lo hace y copia el resultado a la imagen final.
+
 ## Próximas fases
 
 Ver `docs/superpowers/specs/` para el contexto completo del proyecto
-(calendario, interfaz web, evals/guardrails).
+(evals/guardrails, calendario/reuniones).

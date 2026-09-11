@@ -85,3 +85,24 @@ def test_create_on_default_store_records_turn_action():
     start_turn_tracking()
     action = get_default_store().create("dummy_tool", {})
     assert collect_turn_actions() == [action.action_id]
+
+
+def test_list_pending_returns_only_pending_actions():
+    store = PendingActionStore()
+    register_implementation("dummy_tool", lambda: {"ok": True})
+    a = store.create("dummy_tool", {})
+    b = store.create("dummy_tool", {})
+    store.reject(b.action_id)
+
+    pending = store.list_pending()
+
+    assert [p.action_id for p in pending] == [a.action_id]
+
+
+def test_list_pending_excludes_expired():
+    current = {"t": 1000.0}
+    store = PendingActionStore(ttl_seconds=5.0, clock=lambda: current["t"])
+    store.create("dummy_tool", {})
+    current["t"] += 10.0
+
+    assert store.list_pending() == []

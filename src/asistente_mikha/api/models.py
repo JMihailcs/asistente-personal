@@ -26,3 +26,43 @@ class ConfirmResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     ollama_reachable: bool
+
+
+class SystemResponse(BaseModel):
+    ram: dict[str, Any]
+    disk: dict[str, Any]
+    gpu: dict[str, Any]
+
+
+class TaskItemResponse(BaseModel):
+    text: str
+    done: bool
+
+
+class TaskListResponse(BaseModel):
+    name: str
+    tasks: list[TaskItemResponse]
+
+
+class TasksResponse(BaseModel):
+    lists: list[TaskListResponse]
+
+
+class NoteResponse(BaseModel):
+    title: str
+    created: str
+    excerpt: str
+
+
+class NotesResponse(BaseModel):
+    notes: list[NoteResponse]
+
+
+class PendingActionResponse(BaseModel):
+    action_id: str
+    tool_name: str
+    kwargs: dict[str, Any]
+
+
+class PendingActionsResponse(BaseModel):
+    actions: list[PendingActionResponse]

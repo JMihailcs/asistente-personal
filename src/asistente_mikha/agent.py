@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import AsyncIterator
 
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIChatModel
@@ -116,3 +117,24 @@ async def run_turn(session_id: str, message: str) -> AgentTurnResult:
         session.history = result.all_messages()
         span.set_attribute("gen_ai.response.text_length", len(result.output))
     return AgentTurnResult(reply=result.output, pending_action_ids=collect_turn_actions())
+
+
+async def run_turn_stream(session_id: str, message: str) -> AsyncIterator[str | AgentTurnResult]:
+    """Emite deltas de texto y, como ultimo elemento, el AgentTurnResult completo."""
+    start_turn_tracking()
+    session = get_or_create_session(session_id)
+    tracer = get_tracer()
+    with tracer.start_as_current_span("agent.turn.stream") as span:
+        span.set_attribute("gen_ai.request.model", DEFAULT_MODEL_NAME)
+        span.set_attribute("mikha.session_id", session_id)
+        parts: list[str] = []
+        async with session.agent.run_stream(
+            message, message_history=session.history
+        ) as result:
+            async for delta in result.stream_text(delta=True):
+                parts.append(delta)
+                yield delta
+            session.history = result.all_messages()
+        reply = "".join(parts)
+        span.set_attribute("gen_ai.response.text_length", len(reply))
+    yield AgentTurnResult(reply=reply, pending_action_ids=collect_turn_actions())
