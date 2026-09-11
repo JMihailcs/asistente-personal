@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import json
 import time
 from datetime import datetime
+from typing import AsyncIterator
 
 import httpx
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 
-from asistente_mikha.agent import run_turn
+from asistente_mikha.agent import AgentTurnResult, run_turn, run_turn_stream
 from asistente_mikha.api.models import (
     ChatRequest,
     ChatResponse,
@@ -66,6 +69,36 @@ async def confirm(action_id: str, approve: bool = True) -> ConfirmResponse:
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return ConfirmResponse(action_id=action.action_id, status=action.status.value, result=action.result)
+
+
+def _sse(event: str, payload: dict) -> str:
+    return f"event: {event}\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+@router.post("/chat/stream")
+async def chat_stream(request: ChatRequest) -> StreamingResponse:
+    async def event_source() -> AsyncIterator[str]:
+        queried_at = datetime.now()
+        started = time.perf_counter()
+        async for item in run_turn_stream(request.session_id, request.message):
+            if isinstance(item, AgentTurnResult):
+                yield _sse(
+                    "done",
+                    {
+                        "reply": item.reply,
+                        "pending_action_ids": item.pending_action_ids,
+                        "duration_seconds": time.perf_counter() - started,
+                        "queried_at": queried_at.isoformat(),
+                    },
+                )
+            else:
+                yield _sse("token", {"text": item})
+
+    return StreamingResponse(
+        event_source(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get("/system", response_model=SystemResponse)
