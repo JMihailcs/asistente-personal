@@ -1,0 +1,82 @@
+:root {
+  --canvas: #141312;
+  --surface: #1c1a18;
+  --hairline: #2a2724;
+  --text: #edeae6;
+  --muted: #8a837c;
+  --amber: #f2a03d;
+  --amber-hot: #ffd9a0;
+
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --radius: 14px;
+  --gap: 16px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--canvas);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.display {
+  font-family: var(--font-display);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* El ambar es luz emitida, nunca relleno plano. */
+.live {
+  color: var(--amber);
+  text-shadow: 0 0 12px rgba(242, 160, 61, 0.45);
+}
+
+input.panel {
+  outline: none;
+}
+
+input.panel:focus {
+  border-color: var(--amber);
+  box-shadow: 0 0 14px rgba(242, 160, 61, 0.25);
+}
+
+button {
+  background: transparent;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: var(--amber);
+  color: var(--amber);
+}
