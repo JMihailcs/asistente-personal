@@ -103,6 +103,8 @@ en vez de adivinar.
 pytest -m "not integration"   # rápidos, no requieren Ollama
 pytest -m integration         # requieren `ollama serve` con los modelos 'default' y 'nomic-embed-text'
 pytest                        # todo
+
+cd frontend && npm test       # tests del dashboard (vitest)
 ```
 
 ## Interfaz web

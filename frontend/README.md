@@ -1,16 +1,25 @@
-# React + Vite
+# Frontend de Mikha
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Dashboard en React + Vite: el orbe, el chat con streaming y los paneles
+de estado. En produccion lo sirve el propio backend desde `dist/`; esta
+carpeta solo hace falta para desarrollarlo.
 
-Currently, two official plugins are available:
+```bash
+npm install
+npm run dev    # recarga en vivo, con proxy de la API al backend en el 8000
+npm test       # vitest
+npm run lint   # oxlint
+```
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Como esta organizado
 
-## React Compiler
+| Carpeta | Responsabilidad |
+|---|---|
+| `src/orb/` | El orbe: sistema de particulas Three.js y su ciclo de vida |
+| `src/chat/` | Envio de mensajes, parseo del SSE y seguidor de envolvente |
+| `src/panels/` | Paneles de sistema, tareas, notas y confirmaciones |
+| `src/styles/` | Tokens de color y tipografia |
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+`src/orb/orb.js` es Three.js puro, sin React: `Orb.jsx` solo lo monta y
+le pasa `state` y `level`. Esa separacion es a proposito — la animacion
+corre en su propio bucle, ajena a los renders de React.
