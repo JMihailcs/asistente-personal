@@ -4,13 +4,19 @@ from fastapi.testclient import TestClient
 from asistente_mikha.agent import reset_sessions_for_tests
 from asistente_mikha.confirmation import reset_default_store_for_tests
 from asistente_mikha.main import app
+from asistente_mikha.memory import tools as memory_tools
 
 
 @pytest.fixture(autouse=True)
-def _clean_state():
+def _clean_state(tmp_path, monkeypatch):
+    # El lifespan de la app sincroniza el vault al arrancar; sin esto,
+    # este test tocaria el vault real de Obsidian del usuario.
+    monkeypatch.setenv("MIKHA_VAULT_PATH", str(tmp_path))
+    memory_tools.reset_indexer_for_tests()
     reset_default_store_for_tests()
     reset_sessions_for_tests()
     yield
+    memory_tools.reset_indexer_for_tests()
     reset_default_store_for_tests()
     reset_sessions_for_tests()
 

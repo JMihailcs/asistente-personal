@@ -17,7 +17,14 @@ def _clean_store():
 
 
 @pytest.fixture
-def client(monkeypatch):
+def client(monkeypatch, tmp_path):
+    # El lifespan de la app sincroniza el vault al arrancar; sin esto,
+    # los tests tocarian el vault real de Obsidian del usuario.
+    monkeypatch.setenv("MIKHA_VAULT_PATH", str(tmp_path))
+    from asistente_mikha.memory import tools as memory_tools
+
+    memory_tools.reset_indexer_for_tests()
+
     async def fake_run_turn(session_id: str, message: str):
         from asistente_mikha.agent import AgentTurnResult
 
@@ -26,6 +33,7 @@ def client(monkeypatch):
     monkeypatch.setattr("asistente_mikha.api.routes.run_turn", fake_run_turn)
     with TestClient(app) as test_client:
         yield test_client
+    memory_tools.reset_indexer_for_tests()
 
 
 def test_chat_endpoint_returns_agent_reply(client):
