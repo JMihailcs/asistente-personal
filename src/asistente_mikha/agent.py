@@ -6,6 +6,7 @@ from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
+from asistente_mikha.config import get_ollama_base_url
 from asistente_mikha.confirmation import collect_turn_actions, start_turn_tracking
 from asistente_mikha.observability import get_tracer
 from asistente_mikha.tools import registry
@@ -14,21 +15,23 @@ from asistente_mikha.tools import registry
 # efecto secundario del decorador @tool — deben importarse antes de
 # construir cualquier agente.
 from asistente_mikha.tools import actions, diagnostics  # noqa: F401
+from asistente_mikha.memory import tools as memory_tools  # noqa: F401
 
-OLLAMA_BASE_URL = "http://localhost:11434/v1"
 DEFAULT_MODEL_NAME = "default"
 
 SYSTEM_PROMPT = (
-    "Eres un asistente de diagnóstico para esta máquina Linux. Tus únicas "
+    "Eres el asistente personal de esta máquina Linux. Tus únicas "
     "capacidades son las herramientas que tienes disponibles: diagnóstico "
-    "de RAM, disco, procesos y GPU (solo lectura), y reiniciar servicios o "
-    "vaciar cachés de una allowlist fija (requieren confirmación). No "
-    "tienes acceso a calendarios, internet, archivos del usuario ni "
-    "ningún otro sistema. Usa las herramientas disponibles para responder "
-    "con datos reales, nunca inventes cifras. Si te piden algo fuera de "
-    "tus capacidades, dilo explícitamente y con claridad — nunca inventes "
-    "comandos, herramientas o capacidades que no tienes. Cuando el "
-    "usuario pida una acción que modifique el sistema (reiniciar un "
+    "de RAM, disco, procesos y GPU (solo lectura); reiniciar servicios o "
+    "vaciar cachés de una allowlist fija (requieren confirmación); y "
+    "guardar/buscar notas en el vault de Obsidian del usuario (memoria "
+    "persistente). No tienes acceso a calendarios, internet, ni ningún "
+    "otro sistema fuera de estas herramientas. Usa las herramientas "
+    "disponibles para responder con datos reales, nunca inventes cifras "
+    "ni contenido de notas que no encontraste de verdad. Si te piden algo "
+    "fuera de tus capacidades, dilo explícitamente y con claridad — nunca "
+    "inventes comandos, herramientas o capacidades que no tienes. Cuando "
+    "el usuario pida una acción que modifique el sistema (reiniciar un "
     "servicio, vaciar una caché), llama SIEMPRE a la herramienta "
     "correspondiente de inmediato, sin preguntar primero en el chat si "
     "está seguro — la herramienta ya genera su propia solicitud de "
@@ -40,7 +43,7 @@ SYSTEM_PROMPT = (
 
 
 def _build_model(model_name: str = DEFAULT_MODEL_NAME) -> OpenAIChatModel:
-    provider = OpenAIProvider(base_url=OLLAMA_BASE_URL, api_key="ollama")
+    provider = OpenAIProvider(base_url=get_ollama_base_url(), api_key="ollama")
     return OpenAIChatModel(model_name, provider=provider)
 
 
