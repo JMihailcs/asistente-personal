@@ -112,6 +112,15 @@ def test_tasks_router_add_without_text_returns_missing_argument(tmp_path, monkey
     assert result == {"status": "missing_argument", "required": ["text"]}
 
 
+def test_tasks_router_add_without_list_name_does_not_create_any_file(tmp_path, monkeypatch):
+    monkeypatch.setenv("MIKHA_VAULT_PATH", str(tmp_path))
+
+    result = memory_tools.tasks(action="add", text="comprar leche")
+
+    assert result == {"status": "missing_argument", "required": ["list_name"]}
+    assert not (tmp_path / "Tareas").exists()
+
+
 def test_tasks_router_complete_without_text_returns_missing_argument(tmp_path, monkeypatch):
     monkeypatch.setenv("MIKHA_VAULT_PATH", str(tmp_path))
 
