@@ -1,15 +1,17 @@
 from __future__ import annotations
 
-import re
-import shutil
-import subprocess
+from pathlib import Path
 from typing import Literal
 
 import psutil
 
 from asistente_mikha.tools.registry import ToolRisk, tool
 
-_VRAM_LINE_RE = re.compile(r"VRAM (Total|Total Used) Memory \(B\):\s*(\d+)")
+# Se lee sysfs en vez de invocar `rocm-smi`: sysfs esta disponible tal cual
+# dentro de un contenedor (sin montar ROCm ni pasar dispositivos), mientras
+# que rocm-smi vive en /opt/rocm del host y no existe en la imagen. Ademas
+# evita un subproceso por consulta.
+DRM_DEVICES_GLOB = "/sys/class/drm/card*/device"
 
 
 def get_ram_usage() -> dict:
@@ -50,33 +52,31 @@ def list_processes(limit: int = 10) -> list[dict]:
     return procs[:limit]
 
 
+def _read_int(path: Path) -> int | None:
+    try:
+        return int(path.read_text().strip())
+    except (OSError, ValueError):
+        return None
+
+
 def get_gpu_status() -> dict:
-    """Devuelve el uso de VRAM reportado por rocm-smi, o indica que no está disponible."""
-    if shutil.which("rocm-smi") is None:
-        return {"available": False, "reason": "rocm-smi no está instalado o no está en PATH"}
-    result = subprocess.run(
-        ["rocm-smi", "--showmeminfo", "vram"],
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
-    if result.returncode != 0:
-        return {"available": False, "reason": result.stderr.strip() or "rocm-smi falló"}
-    total_bytes = None
-    used_bytes = None
-    for match in _VRAM_LINE_RE.finditer(result.stdout):
-        kind, value = match.group(1), int(match.group(2))
-        if kind == "Total":
-            total_bytes = value
-        else:
-            used_bytes = value
-    if total_bytes is None:
-        return {"available": False, "reason": "no se pudo interpretar la salida de rocm-smi"}
+    """Devuelve el uso de VRAM leido de sysfs, o indica que no esta disponible."""
+    for device in sorted(Path("/").glob(DRM_DEVICES_GLOB.lstrip("/"))):
+        total_bytes = _read_int(device / "mem_info_vram_total")
+        if not total_bytes:
+            continue
+        used_bytes = _read_int(device / "mem_info_vram_used")
+        return {
+            "available": True,
+            "vram_total_bytes": total_bytes,
+            "vram_used_bytes": used_bytes,
+            "vram_used_percent": (
+                round(used_bytes / total_bytes * 100, 1) if used_bytes else None
+            ),
+        }
     return {
-        "available": True,
-        "vram_total_bytes": total_bytes,
-        "vram_used_bytes": used_bytes,
-        "vram_used_percent": round(used_bytes / total_bytes * 100, 1) if used_bytes else None,
+        "available": False,
+        "reason": "no se encontro una GPU con informacion de VRAM en sysfs",
     }
 
 

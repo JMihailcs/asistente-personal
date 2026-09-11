@@ -47,7 +47,7 @@ def _ollama_health_url() -> str:
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest) -> ChatResponse:
-    queried_at = datetime.now()
+    queried_at = datetime.now().astimezone()
     started = time.perf_counter()
     result = await run_turn(request.session_id, request.message)
     duration_seconds = time.perf_counter() - started
@@ -78,7 +78,7 @@ def _sse(event: str, payload: dict) -> str:
 @router.post("/chat/stream")
 async def chat_stream(request: ChatRequest) -> StreamingResponse:
     async def event_source() -> AsyncIterator[str]:
-        queried_at = datetime.now()
+        queried_at = datetime.now().astimezone()
         started = time.perf_counter()
         async for item in run_turn_stream(request.session_id, request.message):
             if isinstance(item, AgentTurnResult):
