@@ -1,29 +1,40 @@
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 from typing import Literal
+
+from jeepney import DBusAddress, MessageType, new_method_call
+from jeepney.io.blocking import open_dbus_connection
 
 from asistente_mikha.confirmation import get_default_store, register_implementation
 from asistente_mikha.tools.registry import ToolRisk, tool
 
 ALLOWED_SERVICES: tuple[str, ...] = ("wireplumber",)
 
+# Se habla D-Bus directo (via jeepney) en vez de invocar el binario
+# `systemctl`: dentro de un contenedor Docker, systemctl --user usa un
+# socket privado de alto rendimiento que solo es compatible entre
+# versiones identicas de systemd, y falla si el systemd del contenedor
+# no coincide exactamente con el del host. El D-Bus estandar de sesion
+# si es compatible entre versiones, tanto nativo como en Docker.
+_SYSTEMD_MANAGER = DBusAddress(
+    "/org/freedesktop/systemd1",
+    bus_name="org.freedesktop.systemd1",
+    interface="org.freedesktop.systemd1.Manager",
+)
+
 
 def _restart_service_impl(service_name: str) -> dict:
     if service_name not in ALLOWED_SERVICES:
         raise ValueError(f"Servicio '{service_name}' no está en la allowlist {ALLOWED_SERVICES}")
-    result = subprocess.run(
-        ["systemctl", "--user", "restart", service_name],
-        capture_output=True,
-        text=True,
-        timeout=15,
-    )
-    return {
-        "service_name": service_name,
-        "returncode": result.returncode,
-        "stderr": result.stderr.strip(),
-    }
+    unit_name = f"{service_name}.service"
+    with open_dbus_connection(bus="SESSION") as connection:
+        msg = new_method_call(_SYSTEMD_MANAGER, "RestartUnit", "ss", (unit_name, "replace"))
+        reply = connection.send_and_get_reply(msg)
+    if reply.header.message_type == MessageType.error:
+        error_text = str(reply.body[0]) if reply.body else "error desconocido"
+        return {"service_name": service_name, "returncode": 1, "stderr": error_text}
+    return {"service_name": service_name, "returncode": 0, "stderr": ""}
 
 
 register_implementation("restart_service", _restart_service_impl)
