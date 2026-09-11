@@ -66,3 +66,39 @@ def test_memory_router_dispatches_search_notes(tmp_path, monkeypatch):
 
     assert len(found) == 1
     assert found[0]["title"] == "Idea"
+
+
+def test_tasks_router_add_and_list(tmp_path, monkeypatch):
+    monkeypatch.setenv("MIKHA_VAULT_PATH", str(tmp_path))
+
+    added = memory_tools.tasks(action="add", list_name="Casa", text="lavar los platos")
+    assert added["status"] == "added"
+
+    listed = memory_tools.tasks(action="list", list_name="Casa")
+    assert listed["tasks"] == [{"text": "lavar los platos", "done": False}]
+
+
+def test_tasks_router_list_returns_list_not_found(tmp_path, monkeypatch):
+    monkeypatch.setenv("MIKHA_VAULT_PATH", str(tmp_path))
+
+    result = memory_tools.tasks(action="list", list_name="No existe")
+
+    assert result == {"status": "list_not_found"}
+
+
+def test_tasks_router_complete(tmp_path, monkeypatch):
+    monkeypatch.setenv("MIKHA_VAULT_PATH", str(tmp_path))
+    memory_tools.tasks(action="add", list_name="Casa", text="lavar los platos")
+
+    result = memory_tools.tasks(action="complete", list_name="Casa", text="lavar")
+
+    assert result["status"] == "completed"
+
+
+def test_tasks_router_list_lists(tmp_path, monkeypatch):
+    monkeypatch.setenv("MIKHA_VAULT_PATH", str(tmp_path))
+    memory_tools.tasks(action="add", list_name="Casa", text="algo")
+
+    result = memory_tools.tasks(action="list_lists")
+
+    assert result == {"lists": ["Casa"]}

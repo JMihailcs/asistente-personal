@@ -5,6 +5,12 @@ from typing import Literal
 from asistente_mikha.config import get_vault_path
 from asistente_mikha.memory.embeddings import ollama_embed
 from asistente_mikha.memory.index import VaultIndexer
+from asistente_mikha.memory.tasks import (
+    add_task,
+    complete_task,
+    list_task_lists,
+    list_tasks,
+)
 from asistente_mikha.memory.vault import write_note
 from asistente_mikha.tools.registry import ToolRisk, tool
 
@@ -62,3 +68,30 @@ def memory(
     if action == "save_note":
         return save_note(title=title or "", content=content or "", tags=tags)
     return search_notes(query=query or "", limit=limit)
+
+
+@tool(
+    risk=ToolRisk.READ,
+    description="Gestiona listas de tareas por tema/meta en el vault de Obsidian del usuario.",
+)
+def tasks(
+    action: Literal["add", "list", "complete", "list_lists"],
+    list_name: str | None = None,
+    text: str | None = None,
+) -> dict:
+    """Agrega, lista o completa tareas de una lista por tema, o lista todas las listas existentes."""
+    vault_path = get_vault_path()
+    if action == "add":
+        path = add_task(vault_path, list_name or "", text or "")
+        return {"status": "added", "path": str(path)}
+    if action == "list":
+        result = list_tasks(vault_path, list_name or "")
+        if result is None:
+            return {"status": "list_not_found"}
+        return {
+            "list": result.name,
+            "tasks": [{"text": item.text, "done": item.done} for item in result.items],
+        }
+    if action == "complete":
+        return complete_task(vault_path, list_name or "", text or "")
+    return {"lists": list_task_lists(vault_path)}
