@@ -1,0 +1,38 @@
+services:
+  phoenix:
+    image: arizephoenix/phoenix:latest
+    ports:
+      - "6006:6006"
+      - "4317:4317"
+    volumes:
+      - phoenix_data:/mnt/data
+    restart: unless-stopped
+
+  backend:
+    build: .
+    ports:
+      - "8000:8000"
+    # El bus de sesion D-Bus del host en /run/user/1000/bus pertenece al
+    # usuario 1000; restart_service habla D-Bus directo (via jeepney) y
+    # necesita conectarse con ese mismo UID o la autenticacion falla.
+    user: "1000:1000"
+    environment:
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434/v1
+      - PHOENIX_ENDPOINT=http://phoenix:6006/v1/traces
+      - MIKHA_VAULT_PATH=/vault
+      # UID 1000 no tiene entrada en /etc/passwd dentro del contenedor,
+      # asi que Path.home() caeria a "/" (no escribible) sin esto.
+      - HOME=/tmp
+      # UID 1000 es el usuario de esta maquina (ver Global Constraints del plan).
+      - DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+    volumes:
+      - ${HOME}/Obsidian/Mikha:/vault
+      - /run/user/1000/bus:/run/user/1000/bus
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - phoenix
+    restart: unless-stopped
+
+volumes:
+  phoenix_data:
