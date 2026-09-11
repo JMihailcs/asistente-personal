@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
+from typing import Literal
 
 import psutil
 
@@ -11,7 +12,6 @@ from asistente_mikha.tools.registry import ToolRisk, tool
 _VRAM_LINE_RE = re.compile(r"VRAM (Total|Total Used) Memory \(B\):\s*(\d+)")
 
 
-@tool(risk=ToolRisk.READ, description="Muestra el uso actual de RAM del sistema.")
 def get_ram_usage() -> dict:
     """Devuelve el uso de RAM del sistema en GB y porcentaje."""
     mem = psutil.virtual_memory()
@@ -23,7 +23,6 @@ def get_ram_usage() -> dict:
     }
 
 
-@tool(risk=ToolRisk.READ, description="Muestra el uso de disco de una ruta dada.")
 def get_disk_usage(path: str = "/") -> dict:
     """Devuelve el uso de disco de `path` en GB y porcentaje."""
     usage = psutil.disk_usage(path)
@@ -36,7 +35,6 @@ def get_disk_usage(path: str = "/") -> dict:
     }
 
 
-@tool(risk=ToolRisk.READ, description="Lista los procesos que más memoria RAM están usando.")
 def list_processes(limit: int = 10) -> list[dict]:
     """Devuelve hasta `limit` procesos ordenados por RSS de memoria descendente."""
     procs: list[dict] = []
@@ -52,7 +50,6 @@ def list_processes(limit: int = 10) -> list[dict]:
     return procs[:limit]
 
 
-@tool(risk=ToolRisk.READ, description="Muestra el uso de VRAM de la GPU AMD, si rocm-smi está disponible.")
 def get_gpu_status() -> dict:
     """Devuelve el uso de VRAM reportado por rocm-smi, o indica que no está disponible."""
     if shutil.which("rocm-smi") is None:
@@ -81,3 +78,22 @@ def get_gpu_status() -> dict:
         "vram_used_bytes": used_bytes,
         "vram_used_percent": round(used_bytes / total_bytes * 100, 1) if used_bytes else None,
     }
+
+
+@tool(
+    risk=ToolRisk.READ,
+    description="Diagnostico del sistema: RAM, disco, procesos o GPU.",
+)
+def diagnostics(
+    check: Literal["ram", "disk", "processes", "gpu"],
+    path: str = "/",
+    limit: int = 10,
+) -> dict | list[dict]:
+    """Devuelve el diagnostico solicitado: 'ram', 'disk', 'processes' o 'gpu'."""
+    if check == "ram":
+        return get_ram_usage()
+    if check == "disk":
+        return get_disk_usage(path)
+    if check == "processes":
+        return list_processes(limit)
+    return get_gpu_status()

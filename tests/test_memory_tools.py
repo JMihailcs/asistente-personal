@@ -43,3 +43,26 @@ def test_save_note_succeeds_even_if_indexing_fails(tmp_path, monkeypatch):
 
     assert result["indexed"] is False
     assert Path(result["path"]).exists()
+
+
+def test_memory_router_dispatches_save_note(tmp_path, monkeypatch):
+    monkeypatch.setenv("MIKHA_VAULT_PATH", str(tmp_path))
+    memory_tools.reset_indexer_for_tests()
+    monkeypatch.setattr(memory_tools, "ollama_embed", fake_embed)
+
+    result = memory_tools.memory(action="save_note", title="Router", content="contenido")
+
+    assert result["indexed"] is True
+    assert Path(result["path"]).exists()
+
+
+def test_memory_router_dispatches_search_notes(tmp_path, monkeypatch):
+    monkeypatch.setenv("MIKHA_VAULT_PATH", str(tmp_path))
+    memory_tools.reset_indexer_for_tests()
+    monkeypatch.setattr(memory_tools, "ollama_embed", fake_embed)
+    memory_tools.save_note(title="Idea", content="contenido de idea")
+
+    found = memory_tools.memory(action="search_notes", query="idea")
+
+    assert len(found) == 1
+    assert found[0]["title"] == "Idea"

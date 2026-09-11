@@ -76,3 +76,13 @@ def test_clear_directory_cache_impl_removes_files(tmp_path, monkeypatch):
     result = actions._clear_directory_cache_impl("asistente_scratch")
     assert result["files_removed"] == 2
     assert list(fake_target_dir.iterdir()) == []
+
+
+def test_system_action_router_dispatches_restart_service():
+    result = actions.system_action(action="restart_service", target="wireplumber")
+    assert result["status"] == "pending_confirmation"
+
+
+def test_system_action_router_dispatches_clear_directory_cache():
+    result = actions.system_action(action="clear_directory_cache", target="asistente_scratch")
+    assert result["status"] == "pending_confirmation"

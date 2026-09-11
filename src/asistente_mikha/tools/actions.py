@@ -40,10 +40,6 @@ def _restart_service_impl(service_name: str) -> dict:
 register_implementation("restart_service", _restart_service_impl)
 
 
-@tool(
-    risk=ToolRisk.CONFIRM,
-    description="Reinicia un servicio de usuario systemd de la allowlist. Requiere confirmación.",
-)
 def restart_service(service_name: Literal["wireplumber"]) -> dict:
     """Propone reiniciar un servicio systemd de usuario. No se ejecuta hasta confirmarse."""
     action = get_default_store().create("restart_service", {"service_name": service_name})
@@ -71,11 +67,24 @@ def _clear_directory_cache_impl(target: str) -> dict:
 register_implementation("clear_directory_cache", _clear_directory_cache_impl)
 
 
-@tool(
-    risk=ToolRisk.CONFIRM,
-    description="Vacía un directorio de caché propio de la aplicación. Requiere confirmación.",
-)
 def clear_directory_cache(target: Literal["asistente_scratch"]) -> dict:
     """Propone vaciar un directorio de caché de la app. No se ejecuta hasta confirmarse."""
     action = get_default_store().create("clear_directory_cache", {"target": target})
     return {"status": "pending_confirmation", "action_id": action.action_id}
+
+
+@tool(
+    risk=ToolRisk.CONFIRM,
+    description=(
+        "Ejecuta una acción controlada del sistema: reiniciar un servicio "
+        "('wireplumber') o vaciar una caché ('asistente_scratch'). Requiere "
+        "confirmación."
+    ),
+)
+def system_action(
+    action: Literal["restart_service", "clear_directory_cache"], target: str
+) -> dict:
+    """Propone una acción de sistema. No se ejecuta hasta confirmarse."""
+    if action == "restart_service":
+        return restart_service(service_name=target)
+    return clear_directory_cache(target=target)

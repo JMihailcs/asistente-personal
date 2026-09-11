@@ -3,6 +3,7 @@ from asistente_mikha.tools.diagnostics import (
     get_disk_usage,
     list_processes,
     get_gpu_status,
+    diagnostics,
 )
 
 
@@ -35,3 +36,10 @@ def test_get_gpu_status_returns_structured_result():
     if result["available"]:
         assert "vram_total_bytes" in result
         assert result["vram_total_bytes"] > 0
+
+
+def test_diagnostics_router_dispatches_to_each_check():
+    assert set(diagnostics(check="ram").keys()) == set(get_ram_usage().keys())
+    assert diagnostics(check="disk", path="/")["path"] == "/"
+    assert len(diagnostics(check="processes", limit=3)) <= 3
+    assert "available" in diagnostics(check="gpu")
