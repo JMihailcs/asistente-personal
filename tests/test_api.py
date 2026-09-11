@@ -45,6 +45,16 @@ def test_chat_endpoint_returns_agent_reply(client):
     assert body["pending_action_ids"] == []
 
 
+def test_chat_endpoint_returns_timing_metadata(client):
+    from datetime import datetime
+
+    response = client.post("/chat", json={"session_id": "s1", "message": "hola"})
+    body = response.json()
+    assert isinstance(body["duration_seconds"], (int, float))
+    assert body["duration_seconds"] >= 0
+    datetime.fromisoformat(body["queried_at"])  # no debe lanzar
+
+
 def test_confirm_endpoint_approves_pending_action(client):
     register_implementation("dummy_tool", lambda: {"ok": True})
     action = get_default_store().create("dummy_tool", {})

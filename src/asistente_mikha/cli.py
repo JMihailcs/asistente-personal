@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass, field
+from datetime import datetime
 
 import httpx
 
@@ -10,17 +12,38 @@ API_BASE_URL = "http://localhost:8000"
 REQUEST_TIMEOUT_SECONDS = 120.0
 
 
-def send_message(client: httpx.Client, session_id: str, message: str) -> tuple[str, list[str]]:
+@dataclass
+class ChatReply:
+    reply: str
+    pending_action_ids: list[str] = field(default_factory=list)
+    duration_seconds: float = 0.0
+    queried_at: str = ""
+
+
+def send_message(client: httpx.Client, session_id: str, message: str) -> ChatReply:
     response = client.post("/chat", json={"session_id": session_id, "message": message})
     response.raise_for_status()
     body = response.json()
-    return body["reply"], body.get("pending_action_ids", [])
+    return ChatReply(
+        reply=body["reply"],
+        pending_action_ids=body.get("pending_action_ids", []),
+        duration_seconds=body.get("duration_seconds", 0.0),
+        queried_at=body.get("queried_at", ""),
+    )
 
 
 def confirm_action(client: httpx.Client, action_id: str, approve: bool) -> dict:
     response = client.post(f"/confirm/{action_id}", params={"approve": approve})
     response.raise_for_status()
     return response.json()
+
+
+def format_timestamp(queried_at: str) -> str:
+    """Extrae hora:minuto:segundo de un timestamp ISO; si no se puede, lo devuelve tal cual."""
+    try:
+        return datetime.fromisoformat(queried_at).strftime("%H:%M:%S")
+    except ValueError:
+        return queried_at
 
 
 def main() -> None:
@@ -36,12 +59,13 @@ def main() -> None:
                 break
             if not message:
                 continue
-            reply, pending_ids = send_message(client, session_id, message)
-            print(reply)
-            for action_id in pending_ids:
+            result = send_message(client, session_id, message)
+            print(result.reply)
+            print(f"  [{format_timestamp(result.queried_at)} · {result.duration_seconds:.1f}s]")
+            for action_id in result.pending_action_ids:
                 answer = input(f"  ¿Confirmar acción {action_id}? [s/N] ").strip().lower()
-                result = confirm_action(client, action_id, approve=(answer == "s"))
-                print(f"  -> {result}")
+                confirm_result = confirm_action(client, action_id, approve=(answer == "s"))
+                print(f"  -> {confirm_result}")
 
 
 if __name__ == "__main__":

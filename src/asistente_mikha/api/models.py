@@ -13,6 +13,8 @@ class ChatRequest(BaseModel):
 class ChatResponse(BaseModel):
     reply: str
     pending_action_ids: list[str] = []
+    duration_seconds: float
+    queried_at: str
 
 
 class ConfirmResponse(BaseModel):

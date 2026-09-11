@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import time
+from datetime import datetime
+
 import httpx
 from fastapi import APIRouter, HTTPException
 
@@ -24,8 +27,16 @@ def _ollama_health_url() -> str:
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest) -> ChatResponse:
+    queried_at = datetime.now()
+    started = time.perf_counter()
     result = await run_turn(request.session_id, request.message)
-    return ChatResponse(reply=result.reply, pending_action_ids=result.pending_action_ids)
+    duration_seconds = time.perf_counter() - started
+    return ChatResponse(
+        reply=result.reply,
+        pending_action_ids=result.pending_action_ids,
+        duration_seconds=duration_seconds,
+        queried_at=queried_at.isoformat(),
+    )
 
 
 @router.post("/confirm/{action_id}", response_model=ConfirmResponse)
