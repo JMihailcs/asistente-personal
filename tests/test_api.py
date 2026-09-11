@@ -1,0 +1,66 @@
+import pytest
+from fastapi.testclient import TestClient
+
+from asistente_mikha.confirmation import (
+    get_default_store,
+    register_implementation,
+    reset_default_store_for_tests,
+)
+from asistente_mikha.main import app
+
+
+@pytest.fixture(autouse=True)
+def _clean_store():
+    reset_default_store_for_tests()
+    yield
+    reset_default_store_for_tests()
+
+
+@pytest.fixture
+def client(monkeypatch):
+    async def fake_run_turn(session_id: str, message: str):
+        from asistente_mikha.agent import AgentTurnResult
+
+        return AgentTurnResult(reply=f"eco: {message}", pending_action_ids=[])
+
+    monkeypatch.setattr("asistente_mikha.api.routes.run_turn", fake_run_turn)
+    with TestClient(app) as test_client:
+        yield test_client
+
+
+def test_chat_endpoint_returns_agent_reply(client):
+    response = client.post("/chat", json={"session_id": "s1", "message": "hola"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["reply"] == "eco: hola"
+    assert body["pending_action_ids"] == []
+
+
+def test_confirm_endpoint_approves_pending_action(client):
+    register_implementation("dummy_tool", lambda: {"ok": True})
+    action = get_default_store().create("dummy_tool", {})
+    response = client.post(f"/confirm/{action.action_id}", params={"approve": True})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "confirmed"
+    assert body["result"] == {"ok": True}
+
+
+def test_confirm_endpoint_rejects_when_approve_false(client):
+    action = get_default_store().create("dummy_tool", {})
+    response = client.post(f"/confirm/{action.action_id}", params={"approve": False})
+    assert response.status_code == 200
+    assert response.json()["status"] == "rejected"
+
+
+def test_confirm_endpoint_unknown_action_returns_404(client):
+    response = client.post("/confirm/no-existe", params={"approve": True})
+    assert response.status_code == 404
+
+
+def test_health_endpoint_returns_structure(client):
+    response = client.get("/health")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ok"
+    assert "ollama_reachable" in body
