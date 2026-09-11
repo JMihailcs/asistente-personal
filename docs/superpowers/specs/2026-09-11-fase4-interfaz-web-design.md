@@ -184,9 +184,13 @@ más el span de OpenTelemetry equivalente al de `run_turn`. El
   (secuencia de eventos y que el evento final traiga los
   `pending_action_ids`).
 - **Frontend**: Vitest + Testing Library para el manejo del stream (con
-  `EventSource` mockeado) y el render de paneles. El orbe recibe un
-  smoke test de montaje/destrucción sin dejar el loop colgado — no un
-  test visual.
+  `fetch` mockeado) y el render de paneles. El orbe recibe un smoke test
+  de montaje/destrucción sin dejar el loop colgado — no un test visual.
+
+  Nota: el cliente consume el SSE con `fetch()` +
+  `response.body.getReader()` y parseo manual, **no con `EventSource`**,
+  porque `EventSource` solo hace GET y el chat manda un cuerpo por POST.
+  Detectado al escribir el plan de implementación.
 - Sin automatización de navegador en esta fase.
 
 ## Pendiente registrado para fases posteriores
