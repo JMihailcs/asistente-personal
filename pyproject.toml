@@ -19,6 +19,7 @@ dependencies = [
     "chromadb>=0.5",
     "pyyaml>=6.0",
     "jeepney>=0.8",
+    "openinference-instrumentation-pydantic-ai>=0.1.8",
 ]
 
 [project.optional-dependencies]

@@ -15,18 +15,23 @@ def configure_tracing(project_name: str = "asistente-mikha", endpoint: str | Non
     global _tracing_configured
     if _tracing_configured:
         return
+    from openinference.instrumentation.pydantic_ai import OpenInferenceSpanProcessor
     from phoenix.otel import register
     from pydantic_ai import Agent
+    from pydantic_ai.models.instrumented import InstrumentationSettings
 
-    register(
+    tracer_provider = register(
         project_name=project_name,
         endpoint=endpoint or get_phoenix_endpoint(),
         auto_instrument=False,
     )
-    # Genera spans anidados por cada llamada al modelo y a cada herramienta
-    # (con el contenido real, tokens y costo) en vez de solo el span plano
-    # "agent.turn" que ya emitimos nosotros mismos.
-    Agent.instrument_all()
+    # OpenInferenceSpanProcessor traduce los spans de PydanticAI al esquema
+    # de atributos que la UI de Phoenix sabe leer para las columnas
+    # input/output/cost (Phoenix documenta version=2 para esta combinación
+    # — versiones más nuevas del esquema GenAI de OTel usan otros nombres
+    # de atributo que la UI de Phoenix todavía no muestra en esas columnas).
+    tracer_provider.add_span_processor(OpenInferenceSpanProcessor())
+    Agent.instrument_all(InstrumentationSettings(version=2))
     _tracing_configured = True
 
 

@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
@@ -36,6 +36,7 @@ def test_configure_tracing_uses_phoenix_endpoint_from_config(monkeypatch):
 
     def fake_register(**kwargs):
         captured.update(kwargs)
+        return MagicMock()
 
     with patch("phoenix.otel.register", side_effect=fake_register):
         observability.configure_tracing()
