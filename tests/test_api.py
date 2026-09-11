@@ -1,6 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from asistente_mikha.api.routes import _ollama_health_url
 from asistente_mikha.confirmation import (
     get_default_store,
     register_implementation,
@@ -72,3 +73,13 @@ def test_health_endpoint_returns_structure(client):
     body = response.json()
     assert body["status"] == "ok"
     assert "ollama_reachable" in body
+
+
+def test_ollama_health_url_derives_from_configured_base_url(monkeypatch):
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434/v1")
+    assert _ollama_health_url() == "http://host.docker.internal:11434/api/tags"
+
+
+def test_ollama_health_url_default(monkeypatch):
+    monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
+    assert _ollama_health_url() == "http://localhost:11434/api/tags"

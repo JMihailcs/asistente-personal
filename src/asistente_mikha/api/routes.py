@@ -10,11 +10,16 @@ from asistente_mikha.api.models import (
     ConfirmResponse,
     HealthResponse,
 )
+from asistente_mikha.config import get_ollama_base_url
 from asistente_mikha.confirmation import get_default_store
 
 router = APIRouter()
 
-OLLAMA_HEALTH_URL = "http://localhost:11434/api/tags"
+
+def _ollama_health_url() -> str:
+    base = get_ollama_base_url()
+    root = base[: -len("/v1")] if base.endswith("/v1") else base
+    return f"{root}/api/tags"
 
 
 @router.post("/chat", response_model=ChatResponse)
@@ -40,7 +45,7 @@ async def health() -> HealthResponse:
     ollama_ok = False
     try:
         async with httpx.AsyncClient(timeout=2.0) as client:
-            resp = await client.get(OLLAMA_HEALTH_URL)
+            resp = await client.get(_ollama_health_url())
             ollama_ok = resp.status_code == 200
     except httpx.HTTPError:
         ollama_ok = False
