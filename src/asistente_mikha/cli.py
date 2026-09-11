@@ -5,6 +5,9 @@ import uuid
 import httpx
 
 API_BASE_URL = "http://localhost:8000"
+# El LLM local puede tardar más que el timeout por defecto de httpx (5s),
+# sobre todo en la primera respuesta de una sesión nueva.
+REQUEST_TIMEOUT_SECONDS = 120.0
 
 
 def send_message(client: httpx.Client, session_id: str, message: str) -> tuple[str, list[str]]:
@@ -23,7 +26,7 @@ def confirm_action(client: httpx.Client, action_id: str, approve: bool) -> dict:
 def main() -> None:
     session_id = str(uuid.uuid4())
     print(f"Asistente Mikha — sesión {session_id}. Escribe 'salir' para terminar.")
-    with httpx.Client(base_url=API_BASE_URL) as client:
+    with httpx.Client(base_url=API_BASE_URL, timeout=REQUEST_TIMEOUT_SECONDS) as client:
         while True:
             try:
                 message = input("> ").strip()
