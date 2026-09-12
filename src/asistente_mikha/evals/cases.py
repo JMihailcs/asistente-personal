@@ -75,31 +75,60 @@ def load_case(data: dict, origen: str) -> EvalCase:
 
     herramienta = _exigir(espera_raw, "herramienta", origen)
 
+    argumentos_raw = espera_raw.get("argumentos")
+    if argumentos_raw is not None:
+        if not isinstance(argumentos_raw, dict):
+            raise CaseError(f"{origen}: 'argumentos' tiene que ser un mapeo")
+        argumentos = dict(argumentos_raw)
+    else:
+        argumentos = {}
+
+    archivos_raw = espera_raw.get("archivos")
     archivos = []
-    for entrada in espera_raw.get("archivos") or []:
-        if not isinstance(entrada, dict):
-            raise CaseError(f"{origen}: cada entrada de 'archivos' tiene que ser un mapeo")
-        _rechazar_desconocidas(entrada, _CLAVES_ARCHIVO, origen, "'archivos'")
-        archivos.append(
-            ExpectedFile(
-                patron=_exigir(entrada, "patron", origen),
-                contiene=_exigir(entrada, "contiene", origen),
+    if archivos_raw is not None:
+        if not isinstance(archivos_raw, list):
+            raise CaseError(f"{origen}: 'archivos' tiene que ser una lista")
+        for entrada in archivos_raw:
+            if not isinstance(entrada, dict):
+                raise CaseError(f"{origen}: cada entrada de 'archivos' tiene que ser un mapeo")
+            _rechazar_desconocidas(entrada, _CLAVES_ARCHIVO, origen, "'archivos'")
+            archivos.append(
+                ExpectedFile(
+                    patron=_exigir(entrada, "patron", origen),
+                    contiene=_exigir(entrada, "contiene", origen),
+                )
             )
-        )
+
+    respuesta_contiene_raw = espera_raw.get("respuesta_contiene")
+    if respuesta_contiene_raw is not None:
+        if not isinstance(respuesta_contiene_raw, list):
+            raise CaseError(f"{origen}: 'respuesta_contiene' tiene que ser una lista")
+        respuesta_contiene = list(respuesta_contiene_raw)
+    else:
+        respuesta_contiene = []
 
     espera = Expectation(
         herramienta=herramienta,
-        argumentos=dict(espera_raw.get("argumentos") or {}),
+        argumentos=argumentos,
         archivos=archivos,
-        respuesta_contiene=list(espera_raw.get("respuesta_contiene") or []),
+        respuesta_contiene=respuesta_contiene,
         respuesta_pregunta=bool(espera_raw.get("respuesta_pregunta", False)),
         fundamentada=bool(espera_raw.get("fundamentada", False)),
     )
+
+    prepara_raw = data.get("prepara")
+    if prepara_raw is not None:
+        if not isinstance(prepara_raw, dict):
+            raise CaseError(f"{origen}: 'prepara' tiene que ser un mapeo")
+        prepara = dict(prepara_raw)
+    else:
+        prepara = {}
+
     return EvalCase(
         id=identificador,
         mensaje=mensaje,
         espera=espera,
-        prepara=dict(data.get("prepara") or {}),
+        prepara=prepara,
     )
 
 

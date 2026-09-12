@@ -76,10 +76,10 @@ def test_rechaza_una_clave_desconocida_en_espera():
 
 
 def test_load_cases_lee_el_directorio_ordenado(tmp_path):
-    (tmp_path / "b.yaml").write_text(
+    (tmp_path / "a.yaml").write_text(
         "id: segundo\nmensaje: dos\nespera:\n  herramienta: ninguna\n", encoding="utf-8"
     )
-    (tmp_path / "a.yaml").write_text(
+    (tmp_path / "b.yaml").write_text(
         "id: primero\nmensaje: uno\nespera:\n  herramienta: ninguna\n", encoding="utf-8"
     )
 
@@ -98,3 +98,20 @@ def test_load_cases_rechaza_ids_repetidos(tmp_path):
         load_cases(tmp_path)
 
     assert "mismo" in str(error.value)
+
+
+@pytest.mark.parametrize(
+    "data, campo",
+    [
+        (_minimo(espera={"herramienta": "ninguna", "respuesta_contiene": "no-es-lista"}), "respuesta_contiene"),
+        (_minimo(espera={"herramienta": "ninguna", "archivos": 123}), "archivos"),
+        (_minimo(espera={"herramienta": "ninguna", "argumentos": "no-es-dict"}), "argumentos"),
+        (_minimo(prepara="no-es-dict"), "prepara"),
+    ],
+)
+def test_tipos_invalidos_en_campos_lanzan_case_error(data, campo):
+    with pytest.raises(CaseError) as error:
+        load_case(data, origen="test.yaml")
+
+    assert campo in str(error.value)
+    assert "test.yaml" in str(error.value)
