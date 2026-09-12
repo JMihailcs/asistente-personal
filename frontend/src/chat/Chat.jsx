@@ -34,6 +34,11 @@ export default function Chat({ messages, onSend, error }) {
                 {formatTime(message.queriedAt)} · {message.durationSeconds.toFixed(1)}s
               </div>
             )}
+            {message.pending && !message.text && (
+              <div className="label live" style={{ marginTop: 6 }}>
+                pensando…
+              </div>
+            )}
             {message.incomplete && (
               <div className="label live" style={{ marginTop: 6 }}>
                 respuesta incompleta

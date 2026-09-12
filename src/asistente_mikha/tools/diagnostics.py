@@ -88,12 +88,21 @@ def diagnostics(
     check: Literal["ram", "disk", "processes", "gpu"],
     path: str = "/",
     limit: int = 10,
-) -> dict | list[dict]:
+) -> dict:
     """Devuelve el diagnostico solicitado: 'ram', 'disk', 'processes' o 'gpu'."""
     if check == "ram":
-        return get_ram_usage()
+        return {"status": "ok", "check": "ram", **get_ram_usage()}
     if check == "disk":
-        return get_disk_usage(path)
+        return {"status": "ok", "check": "disk", **get_disk_usage(path)}
     if check == "processes":
-        return list_processes(limit)
-    return get_gpu_status()
+        return {"status": "ok", "check": "processes", "processes": list_processes(limit)}
+    if check == "gpu":
+        gpu = get_gpu_status()
+        if not gpu.pop("available"):
+            return {"status": "unavailable", "check": "gpu", **gpu}
+        return {"status": "ok", "check": "gpu", **gpu}
+    return {
+        "status": "invalid_action",
+        "check": check,
+        "allowed": ["ram", "disk", "processes", "gpu"],
+    }
