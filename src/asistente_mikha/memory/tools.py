@@ -63,11 +63,30 @@ def memory(
     tags: list[str] | None = None,
     query: str | None = None,
     limit: int = 5,
-) -> dict | list[dict]:
+) -> dict:
     """Guarda ('save_note') o busca ('search_notes') notas en la memoria persistente."""
     if action == "save_note":
-        return save_note(title=title or "", content=content or "", tags=tags)
-    return search_notes(query=query or "", limit=limit)
+        missing = [
+            name for name, value in (("title", title), ("content", content)) if not value
+        ]
+        if missing:
+            return {"status": "missing_argument", "action": action, "required": missing}
+        return {"status": "ok", "action": action, **save_note(title, content, tags)}
+
+    if action == "search_notes":
+        if not query:
+            return {"status": "missing_argument", "action": action, "required": ["query"]}
+        return {
+            "status": "ok",
+            "action": action,
+            "results": search_notes(query=query, limit=limit),
+        }
+
+    return {
+        "status": "invalid_action",
+        "action": action,
+        "allowed": ["save_note", "search_notes"],
+    }
 
 
 @tool(
@@ -80,37 +99,50 @@ def tasks(
     text: str | None = None,
 ) -> dict:
     """Agrega, lista o completa tareas de una lista por tema, o lista todas las listas existentes."""
-    required: list[str] = []
-    if action == "add":
-        if not list_name:
-            required.append("list_name")
-        if not text:
-            required.append("text")
-    elif action == "list":
-        if not list_name:
-            required.append("list_name")
-    elif action == "complete":
-        if not list_name:
-            required.append("list_name")
-        if not text:
-            required.append("text")
-    if required:
-        return {"status": "missing_argument", "required": required}
+    # Que argumentos exige cada accion. Validar antes de tocar el vault evita
+    # que una llamada a medio armar cree listas o complete tareas al azar.
+    requires: dict[str, tuple[str, ...]] = {
+        "add": ("list_name", "text"),
+        "list": ("list_name",),
+        "complete": ("list_name", "text"),
+        "list_lists": (),
+    }
+    if action not in requires:
+        return {"status": "invalid_action", "action": action, "allowed": list(requires)}
+
+    given = {"list_name": list_name, "text": text}
+    missing = [name for name in requires[action] if not given[name]]
+    if missing:
+        return {"status": "missing_argument", "action": action, "required": missing}
 
     vault_path = get_vault_path()
+
+    if action == "list_lists":
+        return {"status": "ok", "action": action, "lists": list_task_lists(vault_path)}
+
+    assert list_name is not None  # garantizado por la validacion de arriba
+
     if action == "add":
-        added = add_task(vault_path, list_name or "", text or "")
+        added = add_task(vault_path, list_name, text or "")
         if not added.tasks:
-            return {"status": "missing_argument", "required": ["text"]}
-        return {"status": "added", "path": str(added.path), "tasks": added.tasks}
-    if action == "list":
-        result = list_tasks(vault_path, list_name or "")
-        if result is None:
-            return {"status": "list_not_found"}
+            return {"status": "missing_argument", "action": action, "required": ["text"]}
         return {
+            "status": "ok",
+            "action": action,
+            "list": list_name,
+            "added": added.tasks,
+            "path": str(added.path),
+        }
+
+    if action == "list":
+        result = list_tasks(vault_path, list_name)
+        if result is None:
+            return {"status": "list_not_found", "action": action, "list": list_name}
+        return {
+            "status": "ok",
+            "action": action,
             "list": result.name,
             "tasks": [{"text": item.text, "done": item.done} for item in result.items],
         }
-    if action == "complete":
-        return complete_task(vault_path, list_name or "", text or "")
-    return {"lists": list_task_lists(vault_path)}
+
+    return {"action": action, "list": list_name, **complete_task(vault_path, list_name, text or "")}

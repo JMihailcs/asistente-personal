@@ -43,7 +43,12 @@ register_implementation("restart_service", _restart_service_impl)
 def restart_service(service_name: Literal["wireplumber"]) -> dict:
     """Propone reiniciar un servicio systemd de usuario. No se ejecuta hasta confirmarse."""
     action = get_default_store().create("restart_service", {"service_name": service_name})
-    return {"status": "pending_confirmation", "action_id": action.action_id}
+    return {
+        "status": "pending_confirmation",
+        "action": "restart_service",
+        "target": service_name,
+        "action_id": action.action_id,
+    }
 
 
 CACHE_TARGETS: dict[str, Path] = {
@@ -70,7 +75,12 @@ register_implementation("clear_directory_cache", _clear_directory_cache_impl)
 def clear_directory_cache(target: Literal["asistente_scratch"]) -> dict:
     """Propone vaciar un directorio de caché de la app. No se ejecuta hasta confirmarse."""
     action = get_default_store().create("clear_directory_cache", {"target": target})
-    return {"status": "pending_confirmation", "action_id": action.action_id}
+    return {
+        "status": "pending_confirmation",
+        "action": "clear_directory_cache",
+        "target": target,
+        "action_id": action.action_id,
+    }
 
 
 @tool(

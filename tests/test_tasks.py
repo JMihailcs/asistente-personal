@@ -90,7 +90,7 @@ def test_complete_task_marks_single_match(tmp_path):
 
     result = complete_task(tmp_path, "Compras", "leche")
 
-    assert result == {"status": "completed", "task": "comprar leche"}
+    assert result == {"status": "ok", "task": "comprar leche"}
     tasks_after = list_tasks(tmp_path, "Compras")
     done_map = {t.text: t.done for t in tasks_after.items}
     assert done_map["comprar leche"] is True
@@ -123,7 +123,7 @@ def test_complete_task_ignores_done_items_when_a_pending_one_matches(tmp_path):
     # ambigüedad real que preguntar.
     result = complete_task(tmp_path, "Compras", "leche")
 
-    assert result == {"status": "completed", "task": "comprar leche deslactosada"}
+    assert result == {"status": "ok", "task": "comprar leche deslactosada"}
 
 
 def test_complete_task_returns_ambiguous_for_multiple_matches(tmp_path):

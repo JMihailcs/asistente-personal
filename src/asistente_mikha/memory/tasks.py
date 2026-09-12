@@ -132,7 +132,7 @@ def complete_task(vault_path: Path, list_name: str, text: str) -> dict:
     index, exact_text = matches[0]
     lines[index] = f"- [x] {exact_text}"
     file_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    return {"status": "completed", "task": exact_text}
+    return {"status": "ok", "task": exact_text}
 
 
 def list_task_lists(vault_path: Path) -> list[str]:

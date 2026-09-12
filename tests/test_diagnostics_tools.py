@@ -50,7 +50,30 @@ def test_get_gpu_status_reports_unavailable_when_no_device_in_sysfs(monkeypatch)
 
 
 def test_diagnostics_router_dispatches_to_each_check():
-    assert set(diagnostics(check="ram").keys()) == set(get_ram_usage().keys())
+    ram = diagnostics(check="ram")
+    assert ram["status"] == "ok"
+    assert set(ram) == {"status", "check"} | set(get_ram_usage())
+
     assert diagnostics(check="disk", path="/")["path"] == "/"
-    assert len(diagnostics(check="processes", limit=3)) <= 3
-    assert "available" in diagnostics(check="gpu")
+    assert len(diagnostics(check="processes", limit=3)["processes"]) <= 3
+
+
+def test_diagnostics_router_reports_gpu_availability_as_a_status():
+    result = diagnostics(check="gpu")
+
+    # 'available' era un booleano aparte que el modelo tenia que mirar ademas
+    # del resto: ahora la disponibilidad vive en el mismo campo que todo lo
+    # demas.
+    assert "available" not in result
+    assert result["status"] in {"ok", "unavailable"}
+
+
+def test_diagnostics_router_reports_gpu_unavailable_without_a_device(monkeypatch):
+    from asistente_mikha.tools import diagnostics as diagnostics_module
+
+    monkeypatch.setattr(diagnostics_module, "DRM_DEVICES_GLOB", "/sys/class/drm/no-existe*/device")
+
+    result = diagnostics(check="gpu")
+
+    assert result["status"] == "unavailable"
+    assert "reason" in result
