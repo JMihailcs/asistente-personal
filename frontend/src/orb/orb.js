@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 // Una sola nube: cada punto es un nodo del arbol, sin particulas sueltas
 // flotando al margen. Encima corren los pulsos que saltan de nodo en nodo.
-const NODE_COUNT = 700;
+const NODE_COUNT = 1100;
 const PULSE_COUNT = 90;
 
 // Cuanto mas adentro tiene que estar un nodo para poder ser padre de otro.
@@ -11,10 +11,10 @@ const RADIAL_STEP = 0.09;
 // Pensar gira rapido y vibra; contestar gira lento y deja que la vibracion
 // la marque la voz (via `level`). Las aristas nunca se apagan del todo.
 const STATE_PARAMS = {
-  idle: { amp: 0.02, speed: 0.3, opacity: 0.45, spin: 0.0015, edges: 0.22, pulse: 0.6 },
-  thinking: { amp: 0.06, speed: 3.4, opacity: 0.8, spin: 0.009, edges: 0.6, pulse: 2.6 },
-  speaking: { amp: 0.18, speed: 0.8, opacity: 1.0, spin: 0.003, edges: 0.4, pulse: 1.2 },
-  awaiting: { amp: 0.04, speed: 0.5, opacity: 1.0, spin: 0.002, edges: 0.3, pulse: 0.8 },
+  idle: { amp: 0.02, speed: 0.3, opacity: 0.45, spin: 0.0015, edges: 0.22, pulse: 0.6, jitter: 0.022 },
+  thinking: { amp: 0.06, speed: 3.4, opacity: 0.8, spin: 0.009, edges: 0.6, pulse: 2.6, jitter: 0.05 },
+  speaking: { amp: 0.18, speed: 0.8, opacity: 1.0, spin: 0.003, edges: 0.4, pulse: 1.2, jitter: 0.038 },
+  awaiting: { amp: 0.04, speed: 0.5, opacity: 1.0, spin: 0.002, edges: 0.3, pulse: 0.8, jitter: 0.025 },
 };
 
 // Cuanto de la diferencia se cubre por frame al cambiar de estado: sin esto
@@ -115,10 +115,20 @@ export function createOrb(canvas) {
   // el escalon de buildRadialTree, asi que poblar el borde no las acuesta.
   const nodeBase = new Float32Array(NODE_COUNT * 3);
   const nodePositions = new Float32Array(NODE_COUNT * 3);
+  // Cada nodo lleva su propia fase y su propia frecuencia en cada eje. Sin
+  // esto el unico movimiento es el radial, todos sobre su rayo y con la
+  // misma onda, que es lo que hace ver el conjunto tieso.
+  const driftPhase = new Float32Array(NODE_COUNT * 3);
+  const driftRate = new Float32Array(NODE_COUNT * 3);
   for (let i = 0; i < NODE_COUNT; i += 1) {
     const [dx, dy, dz] = fibonacciDirection(i, NODE_COUNT);
     const radius = 0.05 + Math.pow(noiseAt(i + 7000), 0.55) * 0.95;
     nodeBase.set([dx * radius, dy * radius, dz * radius], i * 3);
+
+    for (let axis = 0; axis < 3; axis += 1) {
+      driftPhase[i * 3 + axis] = noiseAt(i * 3 + axis + 20000) * Math.PI * 2;
+      driftRate[i * 3 + axis] = 0.6 + noiseAt(i * 3 + axis + 40000) * 1.3;
+    }
   }
   nodePositions.set(nodeBase);
 
@@ -192,6 +202,10 @@ export function createOrb(canvas) {
   // velocidad cambia, y multiplicar por el tiempo absoluto haria saltar la
   // animacion a otra parte de la onda.
   let phase = 0;
+  // Reloj propio del temblor: nunca se detiene, solo se acelera. Colgarlo de
+  // `phase` lo dejaria casi congelado en reposo, que es lo que se quiere
+  // evitar.
+  let drift = 0;
   let spin = STATE_PARAMS.idle.spin;
   let edgeOpacity = STATE_PARAMS.idle.edges;
   let rafId = null;
@@ -208,17 +222,22 @@ export function createOrb(canvas) {
     camera.updateProjectionMatrix();
   }
 
-  function breathe(source, target, count, amp, drive) {
+  function breathe(source, target, count, amp, drive, jitter) {
     for (let i = 0; i < count; i += 1) {
       const i3 = i * 3;
       const bx = source[i3];
       const by = source[i3 + 1];
       const bz = source[i3 + 2];
+      // El pulso comun, que respira toda la nube a la vez...
       const wobble = Math.sin(phase + bx * 4) * Math.cos(phase + by * 4);
       const scale = 1 + wobble * amp * drive;
-      target[i3] = bx * scale;
-      target[i3 + 1] = by * scale;
-      target[i3 + 2] = bz * scale;
+      // ...y encima el temblor propio de cada nodo, distinto por eje, que es
+      // lo que evita que todo se mueva en bloque.
+      target[i3] = bx * scale + Math.sin(drift * driftRate[i3] + driftPhase[i3]) * jitter;
+      target[i3 + 1] =
+        by * scale + Math.sin(drift * driftRate[i3 + 1] + driftPhase[i3 + 1]) * jitter;
+      target[i3 + 2] =
+        bz * scale + Math.sin(drift * driftRate[i3 + 2] + driftPhase[i3 + 2]) * jitter;
     }
   }
 
@@ -226,8 +245,9 @@ export function createOrb(canvas) {
     const params = STATE_PARAMS[state] || STATE_PARAMS.idle;
     const drive = state === 'speaking' ? level : 1;
     phase += 0.016 * params.speed;
+    drift += 0.016 * (0.9 + params.speed * 0.4);
 
-    breathe(nodeBase, nodePositions, NODE_COUNT, params.amp, drive);
+    breathe(nodeBase, nodePositions, NODE_COUNT, params.amp, drive, params.jitter);
     nodeGeometry.attributes.position.needsUpdate = true;
 
     // Las aristas siguen a sus nodos: cada vertice copia la posicion ya
