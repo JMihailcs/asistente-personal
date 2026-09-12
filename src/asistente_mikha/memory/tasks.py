@@ -74,6 +74,20 @@ def add_task(vault_path: Path, list_name: str, text: str) -> TasksAdded:
     return TasksAdded(path=file_path, tasks=tasks)
 
 
+def _stored_list_name(file_path: Path, fallback: str) -> str:
+    """Devuelve el nombre con el que la lista quedo guardada (su titulo H1).
+
+    El archivo se ubica por slug, asi que "Casa", "casa" y "CASA" son la
+    misma lista. El nombre que se reporta tiene que ser uno solo: el
+    guardado, no el que uso quien pregunto.
+    """
+    raw = file_path.read_text(encoding="utf-8")
+    first_line = raw.splitlines()[0] if raw else ""
+    if first_line.startswith("# "):
+        return first_line[2:].strip()
+    return fallback
+
+
 def _parse_task_list(file_path: Path, name: str) -> TaskList:
     items: list[TaskItem] = []
     for line in file_path.read_text(encoding="utf-8").splitlines():
@@ -88,7 +102,7 @@ def list_tasks(vault_path: Path, list_name: str) -> TaskList | None:
     file_path = _list_path(vault_path, list_name)
     if not file_path.exists():
         return None
-    return _parse_task_list(file_path, list_name)
+    return _parse_task_list(file_path, _stored_list_name(file_path, list_name))
 
 
 def complete_task(vault_path: Path, list_name: str, text: str) -> dict:
@@ -115,12 +129,7 @@ def list_task_lists(vault_path: Path) -> list[str]:
     tasks_dir = _tasks_dir(vault_path)
     if not tasks_dir.exists():
         return []
-    names = []
-    for file_path in sorted(tasks_dir.glob("*.md")):
-        raw = file_path.read_text(encoding="utf-8")
-        first_line = raw.splitlines()[0] if raw else ""
-        if first_line.startswith("# "):
-            names.append(first_line[2:].strip())
-        else:
-            names.append(file_path.stem)
-    return names
+    return [
+        _stored_list_name(file_path, file_path.stem)
+        for file_path in sorted(tasks_dir.glob("*.md"))
+    ]

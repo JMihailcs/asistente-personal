@@ -66,6 +66,24 @@ def test_list_tasks_returns_none_for_missing_list(tmp_path):
     assert list_tasks(tmp_path, "No existe") is None
 
 
+def test_list_tasks_reports_the_stored_name_not_the_one_asked_for(tmp_path):
+    add_task(tmp_path, "Idea de Negocio", "comprar granos")
+
+    # La lista se pide con otra capitalizacion: es la misma lista, y debe
+    # reportarse con el nombre que quedo guardado, no con el que se escribio.
+    result = list_tasks(tmp_path, "IDEA DE NEGOCIO")
+
+    assert result.name == "Idea de Negocio"
+
+
+def test_list_tasks_name_matches_what_list_task_lists_reports(tmp_path):
+    add_task(tmp_path, "Idea de Negocio", "comprar granos")
+    add_task(tmp_path, "idea de negocio", "moler granos")
+
+    assert list_task_lists(tmp_path) == ["Idea de Negocio"]
+    assert list_tasks(tmp_path, "idea de negocio").name == "Idea de Negocio"
+
+
 def test_complete_task_marks_single_match(tmp_path):
     add_task(tmp_path, "Compras", "comprar leche")
     add_task(tmp_path, "Compras", "comprar pan")
