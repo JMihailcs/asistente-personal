@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createOrb, buildEdges } from './orb.js';
+import { createOrb, buildRadialTree } from './orb.js';
 
 // Three.js necesita WebGL, que jsdom no provee: se mockea el renderer.
 vi.mock('three', async () => {
@@ -16,10 +16,17 @@ vi.mock('three', async () => {
   };
 });
 
-describe('buildEdges', () => {
-  // Cuatro puntos en linea, separados por 1: solo los contiguos caen dentro
-  // de una distancia maxima de 1.5.
-  const line = Float32Array.from([0, 0, 0, 1, 0, 0, 2, 0, 0, 3, 0, 0]);
+describe('buildRadialTree', () => {
+  // Nodos a distancias crecientes del centro, en distintas direcciones.
+  const cloud = Float32Array.from([
+    0.1, 0, 0,
+    0.4, 0.1, 0,
+    0, 0.5, 0.1,
+    0.8, 0.2, 0,
+    0, 0.9, 0.2,
+    0.2, 0.2, 0.95,
+  ]);
+  const COUNT = 6;
 
   function pairs(edges) {
     const out = [];
@@ -27,40 +34,44 @@ describe('buildEdges', () => {
     return out;
   }
 
-  it('nunca conecta una particula consigo misma', () => {
-    for (const [a, b] of pairs(buildEdges(line, 4, 2, 1.5))) {
-      expect(a).not.toBe(b);
+  const distance = (i) => Math.hypot(cloud[i * 3], cloud[i * 3 + 1], cloud[i * 3 + 2]);
+
+  it('conecta todos los nodos en un solo arbol', () => {
+    // Un arbol que cubre N nodos tiene exactamente N-1 aristas: ni un bosque
+    // de trozos sueltos, ni ciclos.
+    expect(buildRadialTree(cloud, COUNT).length / 2).toBe(COUNT - 1);
+  });
+
+  it('hace crecer las ramas del centro hacia afuera', () => {
+    for (const [parent, child] of pairs(buildRadialTree(cloud, COUNT))) {
+      expect(distance(parent)).toBeLessThanOrEqual(distance(child));
     }
   });
 
-  it('no repite la misma arista en los dos sentidos', () => {
-    const keys = pairs(buildEdges(line, 4, 2, 1.5)).map(([a, b]) =>
-      a < b ? `${a}:${b}` : `${b}:${a}`,
-    );
+  it('le da un solo padre a cada nodo', () => {
+    const children = pairs(buildRadialTree(cloud, COUNT)).map(([, child]) => child);
 
-    expect(new Set(keys).size).toBe(keys.length);
+    expect(new Set(children).size).toBe(children.length);
   });
 
-  it('no une particulas mas lejanas que el maximo', () => {
-    for (const [a, b] of pairs(buildEdges(line, 4, 3, 1.5))) {
-      expect(Math.abs(line[a * 3] - line[b * 3])).toBeLessThanOrEqual(1.5);
+  it('deja al nodo mas interno como raiz, sin padre', () => {
+    const children = new Set(pairs(buildRadialTree(cloud, COUNT)).map(([, child]) => child));
+    const root = [...Array(COUNT).keys()].sort((a, b) => distance(a) - distance(b))[0];
+
+    expect(children.has(root)).toBe(false);
+  });
+
+  it('nunca conecta un nodo consigo mismo', () => {
+    for (const [parent, child] of pairs(buildRadialTree(cloud, COUNT))) {
+      expect(parent).not.toBe(child);
     }
   });
 
   it('no deja indices fuera de la nube', () => {
-    const edges = buildEdges(line, 4, 2, 1.5);
-    for (const index of edges) {
+    for (const index of buildRadialTree(cloud, COUNT)) {
       expect(index).toBeGreaterThanOrEqual(0);
-      expect(index).toBeLessThan(4);
+      expect(index).toBeLessThan(COUNT);
     }
-  });
-
-  it('devuelve pares completos', () => {
-    expect(buildEdges(line, 4, 2, 1.5).length % 2).toBe(0);
-  });
-
-  it('no arma nada si ninguna particula tiene vecinos cerca', () => {
-    expect(buildEdges(line, 4, 2, 0.5).length).toBe(0);
   });
 });
 

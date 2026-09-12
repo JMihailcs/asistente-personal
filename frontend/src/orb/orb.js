@@ -1,56 +1,82 @@
 import * as THREE from 'three';
 
+// Tres capas: el polvo (la cascara de particulas), el grafo (nodos y ramas
+// que salen del centro hacia afuera) y los pulsos que viajan por las ramas.
 const PARTICLE_COUNT = 900;
+const NODE_COUNT = 260;
+const PULSE_COUNT = 90;
 
-// Cuantos vecinos se conecta cada particula y hasta que distancia. Con dos
-// vecinos la nube se lee como un grafo; con mas, las aristas se tapan entre
-// si y vuelve a verse como un bulto solido.
-const EDGE_NEIGHBORS = 2;
-const EDGE_MAX_DISTANCE = 0.26;
+// Cuanto mas adentro tiene que estar un nodo para poder ser padre de otro.
+const RADIAL_STEP = 0.09;
 
-// Pensar es rapido y conectado; contestar es mas lento y vibra al ritmo de
-// la voz (la amplitud la maneja `level`, no la velocidad).
+// Pensar gira rapido y vibra; contestar gira lento y deja que la vibracion
+// la marque la voz (via `level`). Las aristas nunca se apagan del todo.
 const STATE_PARAMS = {
-  idle: { amp: 0.02, speed: 0.3, opacity: 0.45, edges: 0.0 },
-  thinking: { amp: 0.05, speed: 3.4, opacity: 0.75, edges: 0.55 },
-  speaking: { amp: 0.18, speed: 0.8, opacity: 1.0, edges: 0.0 },
-  awaiting: { amp: 0.04, speed: 0.5, opacity: 1.0, edges: 0.12 },
+  idle: { amp: 0.02, speed: 0.3, opacity: 0.45, spin: 0.0015, edges: 0.22, pulse: 0.6 },
+  thinking: { amp: 0.06, speed: 3.4, opacity: 0.8, spin: 0.009, edges: 0.6, pulse: 2.6 },
+  speaking: { amp: 0.18, speed: 0.8, opacity: 1.0, spin: 0.003, edges: 0.4, pulse: 1.2 },
+  awaiting: { amp: 0.04, speed: 0.5, opacity: 1.0, spin: 0.002, edges: 0.3, pulse: 0.8 },
 };
 
 // Cuanto de la diferencia se cubre por frame al cambiar de estado: sin esto
-// las aristas aparecerian de golpe.
-const EDGE_FADE = 0.08;
+// el giro y las aristas cambiarian de golpe.
+const FADE = 0.06;
+
+/** Pseudoaleatorio determinista: la misma nube en cada carga. */
+function noiseAt(i) {
+  return Math.abs((Math.sin(i * 12.9898) * 43758.5453) % 1);
+}
+
+/** Reparte `count` direcciones parejo sobre la esfera (espiral de Fibonacci). */
+function fibonacciDirection(i, count) {
+  const y = 1 - (i / (count - 1)) * 2;
+  const ring = Math.sqrt(Math.max(0, 1 - y * y));
+  const theta = Math.PI * (1 + Math.sqrt(5)) * i;
+  return [Math.cos(theta) * ring, y, Math.sin(theta) * ring];
+}
 
 /**
- * Arma las aristas del grafo uniendo cada particula con sus vecinas mas
- * cercanas. Se calcula una sola vez sobre las posiciones de reposo: la nube
- * respira y rota entera, asi que la topologia sigue siendo valida y cada
- * frame solo hay que mover los extremos. Recalcular proximidad en cada
- * cuadro costaria O(n²) por frame y ademas haria titilar las aristas.
+ * Une cada nodo con el nodo mas cercano que este mas cerca del centro.
+ *
+ * Recorriendo de adentro hacia afuera, cada nodo elige padre entre los que
+ * ya quedaron detras: el resultado es un arbol que nace en el medio y se
+ * abre en ramas hacia el borde, en vez de una malla tendida sobre la
+ * cascara. Se calcula una sola vez sobre las posiciones de reposo — la nube
+ * respira y rota entera, asi que la topologia sigue valiendo y cada frame
+ * solo hay que mover los extremos.
  */
-export function buildEdges(base, count, neighbors = EDGE_NEIGHBORS, maxDistance = EDGE_MAX_DISTANCE) {
-  const maxDistanceSq = maxDistance * maxDistance;
+export function buildRadialTree(positions, count, minRadialStep = RADIAL_STEP) {
+  const distanceToCenter = (i) =>
+    Math.hypot(positions[i * 3], positions[i * 3 + 1], positions[i * 3 + 2]);
+
+  const inwardFirst = Array.from({ length: count }, (_, i) => i).sort(
+    (a, b) => distanceToCenter(a) - distanceToCenter(b),
+  );
+
   const edges = [];
-  const seen = new Set();
+  for (let k = 1; k < inwardFirst.length; k += 1) {
+    const child = inwardFirst[k];
+    // El padre tiene que estar un escalon mas adentro, no solo un poco mas
+    // adentro: si vale cualquiera, cada nodo se engancha con su vecino del
+    // mismo radio y el arbol se acuesta sobre la cascara en vez de crecer
+    // hacia afuera.
+    const ceiling = distanceToCenter(child) - minRadialStep;
+    let parent = inwardFirst[0];
+    let bestDistance = Infinity;
 
-  for (let i = 0; i < count; i += 1) {
-    const candidates = [];
-    for (let j = 0; j < count; j += 1) {
-      if (j === i) continue;
-      const dx = base[i * 3] - base[j * 3];
-      const dy = base[i * 3 + 1] - base[j * 3 + 1];
-      const dz = base[i * 3 + 2] - base[j * 3 + 2];
-      const distanceSq = dx * dx + dy * dy + dz * dz;
-      if (distanceSq <= maxDistanceSq) candidates.push({ j, distanceSq });
+    for (let m = 0; m < k; m += 1) {
+      const candidate = inwardFirst[m];
+      if (distanceToCenter(candidate) > ceiling) break;
+      const dx = positions[child * 3] - positions[candidate * 3];
+      const dy = positions[child * 3 + 1] - positions[candidate * 3 + 1];
+      const dz = positions[child * 3 + 2] - positions[candidate * 3 + 2];
+      const distance = dx * dx + dy * dy + dz * dz;
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        parent = candidate;
+      }
     }
-    candidates.sort((a, b) => a.distanceSq - b.distanceSq);
-
-    for (const candidate of candidates.slice(0, neighbors)) {
-      const key = i < candidate.j ? `${i}:${candidate.j}` : `${candidate.j}:${i}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      edges.push(i, candidate.j);
-    }
+    edges.push(parent, child);
   }
 
   return Uint16Array.from(edges);
@@ -58,7 +84,7 @@ export function buildEdges(base, count, neighbors = EDGE_NEIGHBORS, maxDistance 
 
 // Sprite de glow radial generado en memoria: da a cada particula el halo
 // de luz emitida del diseno de referencia, sin depender de un asset.
-function createGlowTexture() {
+function createGlowTexture(core, mid) {
   const size = 64;
   const element = document.createElement('canvas');
   element.width = size;
@@ -67,8 +93,8 @@ function createGlowTexture() {
   if (!context) return null;
 
   const gradient = context.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-  gradient.addColorStop(0.0, 'rgba(255, 217, 160, 1)');
-  gradient.addColorStop(0.25, 'rgba(242, 160, 61, 0.75)');
+  gradient.addColorStop(0.0, core);
+  gradient.addColorStop(0.25, mid);
   gradient.addColorStop(1.0, 'rgba(242, 160, 61, 0)');
   context.fillStyle = gradient;
   context.fillRect(0, 0, size, size);
@@ -84,29 +110,35 @@ export function createOrb(canvas) {
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
   camera.position.z = 3.2;
 
-  // Distribucion de Fibonacci: reparte los puntos parejo sobre la esfera,
-  // sin los polos apretados que da una grilla lat/lon. El radio se varia
-  // por particula para que la nube tenga volumen y se vea a traves, en vez
-  // de leerse como una cascara solida.
+  // El polvo vive en una cascara (radio 0.62 a 1.0) para que se vea a traves
+  // y no se lea como una bola solida.
   const base = new Float32Array(PARTICLE_COUNT * 3);
   const positions = new Float32Array(PARTICLE_COUNT * 3);
   for (let i = 0; i < PARTICLE_COUNT; i += 1) {
-    const y = 1 - (i / (PARTICLE_COUNT - 1)) * 2;
-    const ring = Math.sqrt(Math.max(0, 1 - y * y));
-    const theta = Math.PI * (1 + Math.sqrt(5)) * i;
-    // Pseudoaleatorio determinista: misma nube en cada carga.
-    const jitter = (Math.sin(i * 12.9898) * 43758.5453) % 1;
-    const radius = 0.62 + Math.abs(jitter) * 0.38;
-    const x = Math.cos(theta) * ring * radius;
-    const z = Math.sin(theta) * ring * radius;
-    base.set([x, y * radius, z], i * 3);
-    positions.set([x, y * radius, z], i * 3);
+    const [dx, dy, dz] = fibonacciDirection(i, PARTICLE_COUNT);
+    const radius = 0.62 + noiseAt(i) * 0.38;
+    base.set([dx * radius, dy * radius, dz * radius], i * 3);
   }
+  positions.set(base);
+
+  // Los nodos del grafo si ocupan todo el volumen, desde casi el centro
+  // hasta el borde: es lo que le da profundidad al arbol.
+  const nodeBase = new Float32Array(NODE_COUNT * 3);
+  const nodePositions = new Float32Array(NODE_COUNT * 3);
+  for (let i = 0; i < NODE_COUNT; i += 1) {
+    const [dx, dy, dz] = fibonacciDirection(i, NODE_COUNT);
+    // Lineal en el radio a proposito: reparte nodos por todo el trayecto del
+    // centro al borde. Sesgarlo hacia afuera dejaba el interior vacio y no
+    // habia de donde nacieran las ramas.
+    const radius = 0.05 + noiseAt(i + 7000) * 0.95;
+    nodeBase.set([dx * radius, dy * radius, dz * radius], i * 3);
+  }
+  nodePositions.set(nodeBase);
 
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
-  const glowTexture = createGlowTexture();
+  const glowTexture = createGlowTexture('rgba(255, 217, 160, 1)', 'rgba(242, 160, 61, 0.75)');
   const material = new THREE.PointsMaterial({
     size: 0.09,
     map: glowTexture,
@@ -117,38 +149,82 @@ export function createOrb(canvas) {
     depthWrite: false,
     sizeAttenuation: true,
   });
-
   const points = new THREE.Points(geometry, material);
 
-  const edges = buildEdges(base, PARTICLE_COUNT);
+  const nodeGeometry = new THREE.BufferGeometry();
+  nodeGeometry.setAttribute('position', new THREE.BufferAttribute(nodePositions, 3));
+  const nodeMaterial = new THREE.PointsMaterial({
+    size: 0.055,
+    map: glowTexture,
+    color: new THREE.Color('#ffd9a0'),
+    transparent: true,
+    opacity: 0.9,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    sizeAttenuation: true,
+  });
+  const nodes = new THREE.Points(nodeGeometry, nodeMaterial);
+
+  const edges = buildRadialTree(nodeBase, NODE_COUNT);
   const edgePositions = new Float32Array(edges.length * 3);
   const edgeGeometry = new THREE.BufferGeometry();
   edgeGeometry.setAttribute('position', new THREE.BufferAttribute(edgePositions, 3));
   const edgeMaterial = new THREE.LineBasicMaterial({
     color: new THREE.Color('#f2a03d'),
     transparent: true,
-    opacity: 0,
+    opacity: 0.22,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
   });
   const lines = new THREE.LineSegments(edgeGeometry, edgeMaterial);
-  lines.visible = false;
 
-  // Puntos y aristas van en el mismo grupo para que roten juntos: si se
-  // rotaran por separado, las aristas se despegarian de sus particulas.
+  // Pulsos: puntitos que recorren una arista de punta a punta y al llegar
+  // reaparecen en otra, como senales saltando de nodo en nodo.
+  const edgeCount = edges.length / 2;
+  const pulsePositions = new Float32Array(PULSE_COUNT * 3);
+  const pulseEdge = new Uint16Array(PULSE_COUNT);
+  const pulseProgress = new Float32Array(PULSE_COUNT);
+  const pulseSpeed = new Float32Array(PULSE_COUNT);
+  for (let p = 0; p < PULSE_COUNT; p += 1) {
+    pulseEdge[p] = Math.floor(noiseAt(p + 100) * edgeCount) % edgeCount;
+    pulseProgress[p] = noiseAt(p + 200);
+    pulseSpeed[p] = 0.004 + noiseAt(p + 300) * 0.008;
+  }
+
+  const pulseGeometry = new THREE.BufferGeometry();
+  pulseGeometry.setAttribute('position', new THREE.BufferAttribute(pulsePositions, 3));
+  const pulseTexture = createGlowTexture('rgba(255, 255, 255, 1)', 'rgba(255, 217, 160, 0.9)');
+  const pulseMaterial = new THREE.PointsMaterial({
+    size: 0.05,
+    map: pulseTexture,
+    color: new THREE.Color('#ffd9a0'),
+    transparent: true,
+    opacity: 0.95,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    sizeAttenuation: true,
+  });
+  const pulses = new THREE.Points(pulseGeometry, pulseMaterial);
+
+  // Todo en el mismo grupo para que gire junto: si cada capa rotara por su
+  // cuenta, las aristas se despegarian de sus nodos.
   const cloud = new THREE.Group();
   cloud.add(points);
   cloud.add(lines);
+  cloud.add(nodes);
+  cloud.add(pulses);
   scene.add(cloud);
 
   let state = 'idle';
   let level = 0;
-  // Fase acumulada en vez de `time * speed`: al cambiar de estado la
+  // Fase acumulada en vez de `tiempo * velocidad`: al cambiar de estado la
   // velocidad cambia, y multiplicar por el tiempo absoluto haria saltar la
   // animacion a otra parte de la onda.
   let phase = 0;
-  let edgeOpacity = 0;
+  let spin = STATE_PARAMS.idle.spin;
+  let edgeOpacity = STATE_PARAMS.idle.edges;
   let rafId = null;
+  let respawn = 1;
 
   const reduceMotion =
     typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -161,43 +237,70 @@ export function createOrb(canvas) {
     camera.updateProjectionMatrix();
   }
 
+  function breathe(source, target, count, amp, drive) {
+    for (let i = 0; i < count; i += 1) {
+      const i3 = i * 3;
+      const bx = source[i3];
+      const by = source[i3 + 1];
+      const bz = source[i3 + 2];
+      const wobble = Math.sin(phase + bx * 4) * Math.cos(phase + by * 4);
+      const scale = 1 + wobble * amp * drive;
+      target[i3] = bx * scale;
+      target[i3 + 1] = by * scale;
+      target[i3 + 2] = bz * scale;
+    }
+  }
+
   function frame() {
     const params = STATE_PARAMS[state] || STATE_PARAMS.idle;
     const drive = state === 'speaking' ? level : 1;
     phase += 0.016 * params.speed;
-    const array = geometry.attributes.position.array;
 
-    for (let i = 0; i < PARTICLE_COUNT; i += 1) {
-      const i3 = i * 3;
-      const bx = base[i3];
-      const by = base[i3 + 1];
-      const bz = base[i3 + 2];
-      const noise = Math.sin(phase + bx * 4) * Math.cos(phase + by * 4);
-      const scale = 1 + noise * params.amp * drive;
-      array[i3] = bx * scale;
-      array[i3 + 1] = by * scale;
-      array[i3 + 2] = bz * scale;
-    }
+    breathe(base, positions, PARTICLE_COUNT, params.amp, drive);
+    breathe(nodeBase, nodePositions, NODE_COUNT, params.amp, drive);
     geometry.attributes.position.needsUpdate = true;
+    nodeGeometry.attributes.position.needsUpdate = true;
 
-    edgeOpacity += (params.edges - edgeOpacity) * EDGE_FADE;
-    lines.visible = edgeOpacity > 0.01;
-    if (lines.visible) {
-      // Las aristas siguen a sus particulas: cada vertice copia la posicion
-      // ya calculada del punto en el que nace.
-      for (let e = 0; e < edges.length; e += 1) {
-        const from = edges[e] * 3;
-        const to = e * 3;
-        edgePositions[to] = array[from];
-        edgePositions[to + 1] = array[from + 1];
-        edgePositions[to + 2] = array[from + 2];
-      }
-      edgeGeometry.attributes.position.needsUpdate = true;
-      edgeMaterial.opacity = edgeOpacity;
+    // Las aristas siguen a sus nodos: cada vertice copia la posicion ya
+    // calculada del nodo en el que nace.
+    for (let e = 0; e < edges.length; e += 1) {
+      const from = edges[e] * 3;
+      const to = e * 3;
+      edgePositions[to] = nodePositions[from];
+      edgePositions[to + 1] = nodePositions[from + 1];
+      edgePositions[to + 2] = nodePositions[from + 2];
     }
+    edgeGeometry.attributes.position.needsUpdate = true;
 
+    for (let p = 0; p < PULSE_COUNT; p += 1) {
+      pulseProgress[p] += pulseSpeed[p] * params.pulse;
+      if (pulseProgress[p] >= 1) {
+        pulseProgress[p] = 0;
+        // Salta a otra arista al azar; el contador da la variacion sin
+        // guardar estado de un generador aparte.
+        respawn += 1;
+        pulseEdge[p] = Math.floor(noiseAt(respawn) * edgeCount) % edgeCount;
+      }
+      const edge = pulseEdge[p] * 2;
+      const from = edges[edge] * 3;
+      const to = edges[edge + 1] * 3;
+      const t = pulseProgress[p];
+      const p3 = p * 3;
+      pulsePositions[p3] = nodePositions[from] + (nodePositions[to] - nodePositions[from]) * t;
+      pulsePositions[p3 + 1] =
+        nodePositions[from + 1] + (nodePositions[to + 1] - nodePositions[from + 1]) * t;
+      pulsePositions[p3 + 2] =
+        nodePositions[from + 2] + (nodePositions[to + 2] - nodePositions[from + 2]) * t;
+    }
+    pulseGeometry.attributes.position.needsUpdate = true;
+
+    edgeOpacity += (params.edges - edgeOpacity) * FADE;
+    edgeMaterial.opacity = edgeOpacity;
     material.opacity = params.opacity * (0.7 + 0.3 * drive);
-    cloud.rotation.y += 0.0015;
+
+    spin += (params.spin - spin) * FADE;
+    cloud.rotation.y += spin;
+
     renderer.render(scene, camera);
     rafId = requestAnimationFrame(frame);
   }
@@ -243,9 +346,14 @@ export function createOrb(canvas) {
       document.removeEventListener('visibilitychange', onVisibility);
       geometry.dispose();
       material.dispose();
+      nodeGeometry.dispose();
+      nodeMaterial.dispose();
       edgeGeometry.dispose();
       edgeMaterial.dispose();
+      pulseGeometry.dispose();
+      pulseMaterial.dispose();
       glowTexture?.dispose();
+      pulseTexture?.dispose();
       renderer.dispose();
     },
   };
