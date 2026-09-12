@@ -99,8 +99,10 @@ def tasks(
 
     vault_path = get_vault_path()
     if action == "add":
-        path = add_task(vault_path, list_name or "", text or "")
-        return {"status": "added", "path": str(path)}
+        added = add_task(vault_path, list_name or "", text or "")
+        if not added.tasks:
+            return {"status": "missing_argument", "required": ["text"]}
+        return {"status": "added", "path": str(added.path), "tasks": added.tasks}
     if action == "list":
         result = list_tasks(vault_path, list_name or "")
         if result is None:

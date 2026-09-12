@@ -7,9 +7,10 @@ from asistente_mikha.memory.tasks import (
 
 
 def test_add_task_creates_list_file_with_title(tmp_path):
-    path = add_task(tmp_path, "Idea de negocio", "comprar granos de cafe")
-    assert path.exists()
-    text = path.read_text()
+    result = add_task(tmp_path, "Idea de negocio", "comprar granos de cafe")
+    assert result.path.exists()
+    assert result.tasks == ["comprar granos de cafe"]
+    text = result.path.read_text()
     assert text.startswith("# Idea de negocio")
     assert "- [ ] comprar granos de cafe" in text
 
@@ -22,6 +23,43 @@ def test_add_task_appends_to_existing_list(tmp_path):
 
     assert [t.text for t in result.items] == ["lavar los platos", "sacar la basura"]
     assert all(not t.done for t in result.items)
+
+
+def test_add_task_splits_multiline_text_into_separate_tasks(tmp_path):
+    result = add_task(tmp_path, "Casa", "lavar los platos\nsacar la basura")
+
+    assert result.tasks == ["lavar los platos", "sacar la basura"]
+    assert [t.text for t in list_tasks(tmp_path, "Casa").items] == [
+        "lavar los platos",
+        "sacar la basura",
+    ]
+
+
+def test_add_task_strips_markdown_bullets_the_model_may_add(tmp_path):
+    result = add_task(tmp_path, "Casa", "- [ ] lavar los platos\n- sacar la basura\n* regar")
+
+    assert result.tasks == ["lavar los platos", "sacar la basura", "regar"]
+
+
+def test_add_task_ignores_blank_lines(tmp_path):
+    result = add_task(tmp_path, "Casa", "\n  \nlavar los platos\n\n")
+
+    assert result.tasks == ["lavar los platos"]
+
+
+def test_add_task_with_no_real_text_creates_nothing(tmp_path):
+    result = add_task(tmp_path, "Casa", "\n   \n")
+
+    assert result.tasks == []
+    assert not result.path.exists()
+
+
+def test_add_task_keeps_leading_dash_that_is_not_a_bullet(tmp_path):
+    # "-5 grados" es texto, no una viñeta: sin espacio detras del guion
+    # no hay lista que desarmar.
+    result = add_task(tmp_path, "Casa", "-5 grados en el freezer")
+
+    assert result.tasks == ["-5 grados en el freezer"]
 
 
 def test_list_tasks_returns_none_for_missing_list(tmp_path):
