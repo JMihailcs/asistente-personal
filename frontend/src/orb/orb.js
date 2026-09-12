@@ -1,9 +1,8 @@
 import * as THREE from 'three';
 
-// Tres capas: el polvo (la cascara de particulas), el grafo (nodos y ramas
-// que salen del centro hacia afuera) y los pulsos que viajan por las ramas.
-const PARTICLE_COUNT = 900;
-const NODE_COUNT = 260;
+// Una sola nube: cada punto es un nodo del arbol, sin particulas sueltas
+// flotando al margen. Encima corren los pulsos que saltan de nodo en nodo.
+const NODE_COUNT = 700;
 const PULSE_COUNT = 90;
 
 // Cuanto mas adentro tiene que estar un nodo para poder ser padre de otro.
@@ -110,55 +109,28 @@ export function createOrb(canvas) {
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
   camera.position.z = 3.2;
 
-  // El polvo vive en una cascara (radio 0.62 a 1.0) para que se vea a traves
-  // y no se lea como una bola solida.
-  const base = new Float32Array(PARTICLE_COUNT * 3);
-  const positions = new Float32Array(PARTICLE_COUNT * 3);
-  for (let i = 0; i < PARTICLE_COUNT; i += 1) {
-    const [dx, dy, dz] = fibonacciDirection(i, PARTICLE_COUNT);
-    const radius = 0.62 + noiseAt(i) * 0.38;
-    base.set([dx * radius, dy * radius, dz * radius], i * 3);
-  }
-  positions.set(base);
-
-  // Los nodos del grafo si ocupan todo el volumen, desde casi el centro
-  // hasta el borde: es lo que le da profundidad al arbol.
+  // Los nodos ocupan todo el volumen, del centro al borde, con el exponente
+  // cargando la mano hacia afuera para que el contorno siga leyendose
+  // redondo. Quien mantiene las ramas radiales no es esta distribucion sino
+  // el escalon de buildRadialTree, asi que poblar el borde no las acuesta.
   const nodeBase = new Float32Array(NODE_COUNT * 3);
   const nodePositions = new Float32Array(NODE_COUNT * 3);
   for (let i = 0; i < NODE_COUNT; i += 1) {
     const [dx, dy, dz] = fibonacciDirection(i, NODE_COUNT);
-    // Lineal en el radio a proposito: reparte nodos por todo el trayecto del
-    // centro al borde. Sesgarlo hacia afuera dejaba el interior vacio y no
-    // habia de donde nacieran las ramas.
-    const radius = 0.05 + noiseAt(i + 7000) * 0.95;
+    const radius = 0.05 + Math.pow(noiseAt(i + 7000), 0.55) * 0.95;
     nodeBase.set([dx * radius, dy * radius, dz * radius], i * 3);
   }
   nodePositions.set(nodeBase);
 
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-
   const glowTexture = createGlowTexture('rgba(255, 217, 160, 1)', 'rgba(242, 160, 61, 0.75)');
-  const material = new THREE.PointsMaterial({
-    size: 0.09,
-    map: glowTexture,
-    color: new THREE.Color('#f2a03d'),
-    transparent: true,
-    opacity: 0.6,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    sizeAttenuation: true,
-  });
-  const points = new THREE.Points(geometry, material);
-
   const nodeGeometry = new THREE.BufferGeometry();
   nodeGeometry.setAttribute('position', new THREE.BufferAttribute(nodePositions, 3));
   const nodeMaterial = new THREE.PointsMaterial({
-    size: 0.055,
+    size: 0.07,
     map: glowTexture,
-    color: new THREE.Color('#ffd9a0'),
+    color: new THREE.Color('#f2a03d'),
     transparent: true,
-    opacity: 0.9,
+    opacity: 0.85,
     blending: THREE.AdditiveBlending,
     depthWrite: false,
     sizeAttenuation: true,
@@ -209,7 +181,6 @@ export function createOrb(canvas) {
   // Todo en el mismo grupo para que gire junto: si cada capa rotara por su
   // cuenta, las aristas se despegarian de sus nodos.
   const cloud = new THREE.Group();
-  cloud.add(points);
   cloud.add(lines);
   cloud.add(nodes);
   cloud.add(pulses);
@@ -256,9 +227,7 @@ export function createOrb(canvas) {
     const drive = state === 'speaking' ? level : 1;
     phase += 0.016 * params.speed;
 
-    breathe(base, positions, PARTICLE_COUNT, params.amp, drive);
     breathe(nodeBase, nodePositions, NODE_COUNT, params.amp, drive);
-    geometry.attributes.position.needsUpdate = true;
     nodeGeometry.attributes.position.needsUpdate = true;
 
     // Las aristas siguen a sus nodos: cada vertice copia la posicion ya
@@ -296,7 +265,7 @@ export function createOrb(canvas) {
 
     edgeOpacity += (params.edges - edgeOpacity) * FADE;
     edgeMaterial.opacity = edgeOpacity;
-    material.opacity = params.opacity * (0.7 + 0.3 * drive);
+    nodeMaterial.opacity = params.opacity * (0.7 + 0.3 * drive);
 
     spin += (params.spin - spin) * FADE;
     cloud.rotation.y += spin;
@@ -344,8 +313,6 @@ export function createOrb(canvas) {
       stop();
       window.removeEventListener('resize', resize);
       document.removeEventListener('visibilitychange', onVisibility);
-      geometry.dispose();
-      material.dispose();
       nodeGeometry.dispose();
       nodeMaterial.dispose();
       edgeGeometry.dispose();
