@@ -85,6 +85,28 @@ def system_action(
     action: Literal["restart_service", "clear_directory_cache"], target: str
 ) -> dict:
     """Propone una acción de sistema. No se ejecuta hasta confirmarse."""
+    # Las allowlists se leen aca y no al importar: son el estado actual del
+    # modulo, que los tests sustituyen.
+    allowed_by_action: dict[str, list[str]] = {
+        "restart_service": list(ALLOWED_SERVICES),
+        "clear_directory_cache": list(CACHE_TARGETS),
+    }
+    allowed = allowed_by_action.get(action)
+    if allowed is None:
+        return {
+            "status": "invalid_action",
+            "action": action,
+            "allowed": list(allowed_by_action),
+        }
+    # Se valida al proponer, no al ejecutar: pedirle confirmacion al usuario
+    # para algo que ya sabemos que va a fallar no le sirve a nadie.
+    if target not in allowed:
+        return {
+            "status": "invalid_target",
+            "action": action,
+            "target": target,
+            "allowed": allowed,
+        }
     if action == "restart_service":
         return restart_service(service_name=target)
     return clear_directory_cache(target=target)

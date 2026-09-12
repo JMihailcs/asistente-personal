@@ -86,3 +86,21 @@ def test_system_action_router_dispatches_restart_service():
 def test_system_action_router_dispatches_clear_directory_cache():
     result = actions.system_action(action="clear_directory_cache", target="asistente_scratch")
     assert result["status"] == "pending_confirmation"
+
+
+def test_system_action_rejects_a_target_that_belongs_to_the_other_action():
+    # Pedirle confirmacion al usuario para algo que ya sabemos que va a
+    # fallar al ejecutarse es peor que rechazarlo de entrada.
+    result = actions.system_action(action="restart_service", target="asistente_scratch")
+
+    assert result["status"] == "invalid_target"
+    assert result["allowed"] == ["wireplumber"]
+    assert get_default_store().list_pending() == []
+
+
+def test_system_action_rejects_an_unknown_cache_target():
+    result = actions.system_action(action="clear_directory_cache", target="/etc")
+
+    assert result["status"] == "invalid_target"
+    assert result["allowed"] == ["asistente_scratch"]
+    assert get_default_store().list_pending() == []
