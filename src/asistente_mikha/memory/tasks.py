@@ -111,11 +111,21 @@ def complete_task(vault_path: Path, list_name: str, text: str) -> dict:
         return {"status": "list_not_found"}
     lines = file_path.read_text(encoding="utf-8").splitlines()
     matches: list[tuple[int, str]] = []
+    done_matches: list[str] = []
     for i, line in enumerate(lines):
         match = _TASK_LINE_RE.match(line.strip())
-        if match and match.group(1) == " " and text.lower() in match.group(2).lower():
+        if not match or text.lower() not in match.group(2).lower():
+            continue
+        if match.group(1) == " ":
             matches.append((i, match.group(2)))
+        else:
+            done_matches.append(match.group(2))
     if len(matches) == 0:
+        # Sin pendientes que coincidan, una que ya este hecha no es lo mismo
+        # que una que no existe: decir 'not_found' sobre una tarea que esta
+        # ahi, tachada, le miente al usuario.
+        if done_matches:
+            return {"status": "already_done", "task": done_matches[0]}
         return {"status": "not_found"}
     if len(matches) > 1:
         return {"status": "ambiguous", "matches": [m[1] for m in matches]}

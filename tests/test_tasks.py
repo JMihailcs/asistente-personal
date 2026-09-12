@@ -105,6 +105,27 @@ def test_complete_task_returns_not_found(tmp_path):
     assert result == {"status": "not_found"}
 
 
+def test_complete_task_reports_already_done_instead_of_not_found(tmp_path):
+    add_task(tmp_path, "Compras", "comprar leche")
+    complete_task(tmp_path, "Compras", "leche")
+
+    result = complete_task(tmp_path, "Compras", "leche")
+
+    assert result == {"status": "already_done", "task": "comprar leche"}
+
+
+def test_complete_task_ignores_done_items_when_a_pending_one_matches(tmp_path):
+    add_task(tmp_path, "Compras", "comprar leche entera")
+    complete_task(tmp_path, "Compras", "entera")
+    add_task(tmp_path, "Compras", "comprar leche deslactosada")
+
+    # "leche" coincide con las dos, pero solo una sigue pendiente: no hay
+    # ambigüedad real que preguntar.
+    result = complete_task(tmp_path, "Compras", "leche")
+
+    assert result == {"status": "completed", "task": "comprar leche deslactosada"}
+
+
 def test_complete_task_returns_ambiguous_for_multiple_matches(tmp_path):
     add_task(tmp_path, "Compras", "comprar leche entera")
     add_task(tmp_path, "Compras", "comprar leche deslactosada")
