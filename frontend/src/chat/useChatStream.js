@@ -49,8 +49,25 @@ export function useChatStream() {
 
   const send = useCallback(async (text) => {
     setError(null);
-    setMessages((prev) => [...prev, { role: 'user', text }]);
+    // El hueco del asistente se abre al enviar, no cuando contesta el backend:
+    // asi el "pensando" aparece de inmediato aunque los headers tarden (el
+    // proxy de desarrollo de Vite, por ejemplo, los retiene hasta el primer
+    // chunk). Nace 'pending', no 'incomplete': mientras el turno esta en curso
+    // no hay nada roto que avisar.
+    setMessages((prev) => [
+      ...prev,
+      { role: 'user', text },
+      { role: 'assistant', text: '', pending: true },
+    ]);
     setState('thinking');
+
+    // El turno nunca llego a empezar: se retira el hueco en vez de dejar un
+    // bloque vacio colgado. El error se muestra aparte.
+    const abandonTurn = (message) => {
+      setMessages((prev) => prev.slice(0, -1));
+      setError(message);
+      setState('idle');
+    };
 
     let response;
     try {
@@ -60,18 +77,14 @@ export function useChatStream() {
         body: JSON.stringify({ session_id: 'web', message: text }),
       });
     } catch (err) {
-      setError(err.message || 'sin conexión con el backend');
-      setState('idle');
+      abandonTurn(err.message || 'sin conexión con el backend');
       return;
     }
 
     if (!response.ok || !response.body) {
-      setError(`el backend respondió ${response.status}`);
-      setState('idle');
+      abandonTurn(`el backend respondió ${response.status}`);
       return;
     }
-
-    setMessages((prev) => [...prev, { role: 'assistant', text: '', incomplete: true }]);
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -116,8 +129,17 @@ export function useChatStream() {
     }
 
     if (!sawDone) {
-      // El stream corto a mitad: queda marcado incompleto. Nunca se muestra
-      // una respuesta truncada como si estuviera terminada.
+      // El stream corto a mitad: recien aca queda marcado incompleto. Nunca se
+      // muestra una respuesta truncada como si estuviera terminada.
+      setMessages((prev) => {
+        const next = [...prev];
+        next[next.length - 1] = {
+          ...next[next.length - 1],
+          pending: false,
+          incomplete: true,
+        };
+        return next;
+      });
       setError('la respuesta se cortó antes de terminar');
       setState('idle');
     }
