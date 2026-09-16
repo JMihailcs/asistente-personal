@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 from datetime import datetime
 from typing import AsyncIterator
@@ -9,7 +10,12 @@ import httpx
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
-from asistente_mikha.agent import AgentTurnResult, run_turn, run_turn_stream
+from asistente_mikha.agent import (
+    DEFAULT_MODEL_NAME,
+    AgentTurnResult,
+    run_turn,
+    run_turn_stream,
+)
 from asistente_mikha.api.models import (
     ChatRequest,
     ChatResponse,
@@ -34,6 +40,8 @@ from asistente_mikha.tools.diagnostics import (
     get_ram_usage,
 )
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 RECENT_NOTES_LIMIT = 5
@@ -45,11 +53,42 @@ def _ollama_health_url() -> str:
     return f"{root}/api/tags"
 
 
+def explicar_falla_del_modelo(error: Exception) -> str:
+    """Traduce una falla del modelo a algo que el usuario pueda accionar.
+
+    El traceback crudo no le sirve a nadie: las dos causas reales son que
+    Ollama no este levantado o que no tenga el alias que Mikha pide, y cada
+    una se arregla con un comando distinto.
+    """
+    texto = str(error)
+    plano = texto.lower()
+    if "connection" in plano or "connect" in plano:
+        return (
+            f"No hay conexion con Ollama en {get_ollama_base_url()}. "
+            f"Levantalo con 'ollama serve' y volve a intentar."
+        )
+    if "not found" in plano or "404" in plano:
+        return (
+            f"Ollama esta corriendo pero no tiene el modelo '{DEFAULT_MODEL_NAME}'. "
+            f"'{DEFAULT_MODEL_NAME}' es un alias: crealo con "
+            f"'ollama cp <tu-modelo> {DEFAULT_MODEL_NAME}'."
+        )
+    return f"Fallo la llamada al modelo: {texto}"
+
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest) -> ChatResponse:
     queried_at = datetime.now().astimezone()
     started = time.perf_counter()
-    result = await run_turn(request.session_id, request.message)
+    try:
+        result = await run_turn(request.session_id, request.message)
+    except Exception as error:
+        # 503 y no 500: el servicio del que dependemos no esta disponible, y
+        # el detalle dice como levantarlo en vez de un 'Internal Server Error'.
+        logger.exception("fallo el turno de chat")
+        raise HTTPException(
+            status_code=503, detail=explicar_falla_del_modelo(error)
+        ) from error
     duration_seconds = time.perf_counter() - started
     return ChatResponse(
         reply=result.reply,
@@ -80,19 +119,27 @@ async def chat_stream(request: ChatRequest) -> StreamingResponse:
     async def event_source() -> AsyncIterator[str]:
         queried_at = datetime.now().astimezone()
         started = time.perf_counter()
-        async for item in run_turn_stream(request.session_id, request.message):
-            if isinstance(item, AgentTurnResult):
-                yield _sse(
-                    "done",
-                    {
-                        "reply": item.reply,
-                        "pending_action_ids": item.pending_action_ids,
-                        "duration_seconds": time.perf_counter() - started,
-                        "queried_at": queried_at.isoformat(),
-                    },
-                )
-            else:
-                yield _sse("token", {"text": item})
+        # La respuesta ya salio con 200 y los headers puestos, asi que una
+        # excepcion aca no puede volverse un 500: el cliente veria la conexion
+        # cortarse sin un solo byte y se quedaria esperando para siempre. El
+        # error tiene que viajar como un evento mas del stream.
+        try:
+            async for item in run_turn_stream(request.session_id, request.message):
+                if isinstance(item, AgentTurnResult):
+                    yield _sse(
+                        "done",
+                        {
+                            "reply": item.reply,
+                            "pending_action_ids": item.pending_action_ids,
+                            "duration_seconds": time.perf_counter() - started,
+                            "queried_at": queried_at.isoformat(),
+                        },
+                    )
+                else:
+                    yield _sse("token", {"text": item})
+        except Exception as error:
+            logger.exception("fallo el turno de chat en streaming")
+            yield _sse("error", {"message": explicar_falla_del_modelo(error)})
 
     return StreamingResponse(
         event_source(),

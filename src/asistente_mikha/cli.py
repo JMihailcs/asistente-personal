@@ -46,6 +46,26 @@ def format_timestamp(queried_at: str) -> str:
         return queried_at
 
 
+def describir_error_http(error: Exception) -> str:
+    """Convierte una falla de red o un error del backend en algo accionable.
+
+    El backend ya manda un detalle que dice que comando correr; lo unico que
+    hace falta es mostrarlo en vez de dejar salir un traceback crudo.
+    """
+    if isinstance(error, httpx.HTTPStatusError):
+        try:
+            detalle = error.response.json().get("detail")
+        except ValueError:
+            detalle = None
+        if detalle:
+            return str(detalle)
+        return f"el backend respondio {error.response.status_code}"
+    return (
+        f"No hay conexion con el backend en {API_BASE_URL}. "
+        f"Levantalo con 'uvicorn asistente_mikha.main:app' y volve a intentar."
+    )
+
+
 def main() -> None:
     session_id = str(uuid.uuid4())
     print(f"Asistente Mikha — sesión {session_id}. Escribe 'salir' para terminar.")
@@ -59,7 +79,11 @@ def main() -> None:
                 break
             if not message:
                 continue
-            result = send_message(client, session_id, message)
+            try:
+                result = send_message(client, session_id, message)
+            except (httpx.HTTPStatusError, httpx.HTTPError) as error:
+                print(f"  [!] {describir_error_http(error)}")
+                continue
             print(result.reply)
             print(f"  [{format_timestamp(result.queried_at)} · {result.duration_seconds:.1f}s]")
             for action_id in result.pending_action_ids:

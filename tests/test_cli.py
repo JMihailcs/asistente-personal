@@ -57,3 +57,32 @@ def test_format_timestamp_extracts_hour_minute_second():
 
 def test_format_timestamp_returns_raw_value_when_unparseable():
     assert format_timestamp("no-es-una-fecha") == "no-es-una-fecha"
+
+
+def test_el_cli_muestra_el_detalle_del_backend_en_vez_de_crashear(capsys):
+    # Sin esto, raise_for_status() lanzaba un traceback crudo y la sesion se
+    # moria: el usuario no se enteraba de que solo faltaba levantar Ollama.
+    import httpx
+
+    from asistente_mikha.cli import describir_error_http
+
+    respuesta = httpx.Response(
+        503,
+        json={"detail": "No hay conexion con Ollama. Levantalo con 'ollama serve'."},
+        request=httpx.Request("POST", "http://localhost:8000/chat"),
+    )
+    error = httpx.HTTPStatusError("503", request=respuesta.request, response=respuesta)
+
+    assert "ollama serve" in describir_error_http(error)
+
+
+def test_el_cli_explica_un_backend_apagado():
+    import httpx
+
+    from asistente_mikha.cli import describir_error_http
+
+    error = httpx.ConnectError("connection refused")
+
+    mensaje = describir_error_http(error)
+    assert "backend" in mensaje.lower()
+    assert "uvicorn" in mensaje
