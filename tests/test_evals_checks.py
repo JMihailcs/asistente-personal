@@ -119,3 +119,69 @@ def test_respuesta_ok_exige_las_subcadenas():
 def test_respuesta_ok_exige_pregunta_cuando_se_pide():
     assert respuesta_ok("¿A que lista la agrego?", [], True).ok is True
     assert respuesta_ok("La agregue a Casa.", [], True).ok is False
+
+
+import pytest
+
+from asistente_mikha.evals.checks import fundamentada
+
+
+def _ram():
+    return [ToolCall(
+        name="diagnostics",
+        args={"check": "ram"},
+        result={"status": "ok", "total_gb": 31.23, "used_gb": 16.57, "available_gb": 14.66},
+    )]
+
+
+def test_una_respuesta_sin_numeros_esta_fundamentada():
+    assert fundamentada("Todo en orden.", _ram()).ok is True
+
+
+def test_los_valores_exactos_estan_fundamentados():
+    assert fundamentada("Tenes 31.23 GB en total y 16.57 usados.", _ram()).ok is True
+
+
+@pytest.mark.parametrize("texto", ["unos 31 GB", "31.2 GB", "31,2 GB", "casi 31.5 GB"])
+def test_el_redondeo_razonable_esta_fundamentado(texto):
+    # 'unos 31 GB' sobre un valor de 31.23 es correcto, no una invencion.
+    assert fundamentada(f"Tenes {texto} de RAM.", _ram()).ok is True
+
+
+def test_un_numero_inventado_se_detecta():
+    veredicto = fundamentada("Tenes 45 GB de RAM.", _ram())
+
+    assert veredicto.ok is False
+    assert "45" in veredicto.motivo
+
+
+def test_el_tamano_de_una_coleccion_esta_fundamentado():
+    llamadas = [ToolCall(
+        name="tasks",
+        args={"action": "list_lists"},
+        result={"status": "ok", "lists": ["Casa", "Compras", "Idea de negocio"]},
+    )]
+
+    assert fundamentada("Tenes 3 listas.", llamadas).ok is True
+
+
+def test_los_enteros_chicos_son_lenguaje_y_no_datos():
+    # "un par de cosas", "los 2 primeros": no son cifras reportadas.
+    assert fundamentada("Te menciono 2 cosas.", _ram()).ok is True
+
+
+def test_sin_ninguna_llamada_un_numero_grande_es_invencion():
+    veredicto = fundamentada("Tenes 512 GB libres.", [])
+
+    assert veredicto.ok is False
+    assert "512" in veredicto.motivo
+
+
+def test_busca_en_valores_anidados_del_resultado():
+    llamadas = [ToolCall(
+        name="diagnostics",
+        args={"check": "processes"},
+        result={"status": "ok", "processes": [{"pid": 2721251, "rss_mb": 1843.5}]},
+    )]
+
+    assert fundamentada("El proceso 2721251 usa 1843.5 MB.", llamadas).ok is True

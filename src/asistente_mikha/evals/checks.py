@@ -124,3 +124,79 @@ def respuesta_ok(respuesta: str, contiene: list[str], pregunta: bool) -> Verdict
     if pregunta and "?" not in respuesta:
         return Verdict(False, "se esperaba que preguntara y no hay ninguna pregunta")
     return Verdict(True)
+
+
+_NUMERO_RE = re.compile(r"\d+(?:[.,]\d+)?")
+
+# Un 2% sobre 31.23 GB es 0.6 GB: cubre 'unos 31' sin dejar pasar '45'.
+TOLERANCIA_RELATIVA = 0.02
+
+# Enteros que en castellano son lenguaje y no cifras reportadas: "te
+# menciono 2 cosas", "los 3 primeros". Por encima de 10 ya se lee como dato.
+MAXIMO_ENTERO_DE_LENGUAJE = 10
+
+
+def _numeros_de_texto(texto: str) -> list[float]:
+    encontrados = []
+    for bruto in _NUMERO_RE.findall(texto):
+        try:
+            encontrados.append(float(bruto.replace(",", ".")))
+        except ValueError:
+            continue
+    return encontrados
+
+
+def _valores_del_resultado(obj: Any) -> set[float]:
+    """Todos los numeros que la herramienta devolvio, mas los tamaños de sus colecciones."""
+    valores: set[float] = set()
+    if isinstance(obj, bool):
+        return valores
+    if isinstance(obj, (int, float)):
+        valores.add(float(obj))
+    elif isinstance(obj, str):
+        valores.update(_numeros_de_texto(obj))
+    elif isinstance(obj, dict):
+        for valor in obj.values():
+            valores |= _valores_del_resultado(valor)
+    elif isinstance(obj, (list, tuple)):
+        # El tamaño cuenta: "tenes 3 listas" se apoya en una lista de 3.
+        valores.add(float(len(obj)))
+        for valor in obj:
+            valores |= _valores_del_resultado(valor)
+    return valores
+
+
+def _se_corresponde(numero: float, valores: set[float]) -> bool:
+    for valor in valores:
+        if numero == valor:
+            return True
+        if round(valor) == numero or round(valor, 1) == numero:
+            return True
+        if abs(valor - numero) <= TOLERANCIA_RELATIVA * abs(valor):
+            return True
+    return False
+
+
+def fundamentada(respuesta: str, llamadas: list[ToolCall]) -> Verdict:
+    """Verifica que cada cifra de la respuesta salga de alguna herramienta.
+
+    Comparar literalmente daria falsos fallos: si la herramienta devuelve
+    31.23 y el modelo dice 'unos 31 GB', eso es correcto. Se acepta el
+    redondeo a 0 o 1 decimales y un 2% de diferencia relativa.
+    """
+    valores: set[float] = set()
+    for llamada in llamadas:
+        valores |= _valores_del_resultado(llamada.result)
+
+    inventados = [
+        numero
+        for numero in _numeros_de_texto(respuesta)
+        if not (
+            (numero.is_integer() and numero <= MAXIMO_ENTERO_DE_LENGUAJE)
+            or _se_corresponde(numero, valores)
+        )
+    ]
+    if inventados:
+        crudos = ", ".join(f"{n:g}" for n in inventados)
+        return Verdict(False, f"cifras que ninguna herramienta devolvio: {crudos}")
+    return Verdict(True)
