@@ -1,0 +1,11 @@
+id: tarea-completar-lista-larga
+prepara:
+  tareas:
+    Idea de negocio: ["comprar granos de cafe", "buscar local"]
+mensaje: "Marca como hecha la tarea de comprar granos de cafe en mi lista de Idea de negocio."
+espera:
+  herramienta: tasks
+  argumentos: { action: complete, list_name: "Idea de negocio" }
+  archivos:
+    - patron: "Tareas/*.md"
+      contiene: "- [x] comprar granos de cafe"
