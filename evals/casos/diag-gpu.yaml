@@ -1,0 +1,5 @@
+id: diag-gpu
+mensaje: "¿Cómo está la GPU?"
+espera:
+  herramienta: diagnostics
+  argumentos: { check: gpu }

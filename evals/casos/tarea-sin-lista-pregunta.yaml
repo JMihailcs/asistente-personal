@@ -1,0 +1,5 @@
+id: tarea-sin-lista-pregunta
+mensaje: "Agrega la tarea comprar leche."
+espera:
+  herramienta: ninguna
+  respuesta_pregunta: true

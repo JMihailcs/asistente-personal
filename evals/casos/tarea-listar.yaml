@@ -1,0 +1,9 @@
+id: tarea-listar
+prepara:
+  tareas:
+    Casa: ["lavar los platos", "sacar la basura"]
+mensaje: "¿Qué tareas tengo en mi lista de Casa?"
+espera:
+  herramienta: tasks
+  argumentos: { action: list, list_name: "Casa" }
+  respuesta_contiene: ["lavar los platos"]

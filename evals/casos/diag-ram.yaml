@@ -1,0 +1,6 @@
+id: diag-ram
+mensaje: "¿Cuánta RAM tengo libre?"
+espera:
+  herramienta: diagnostics
+  argumentos: { check: ram }
+  fundamentada: true

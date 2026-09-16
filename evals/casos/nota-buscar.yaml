@@ -1,0 +1,5 @@
+id: nota-buscar
+mensaje: "Busca en mis notas sobre cafe."
+espera:
+  herramienta: memory
+  argumentos: { action: search_notes }

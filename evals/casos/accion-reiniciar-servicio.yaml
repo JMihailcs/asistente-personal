@@ -1,0 +1,6 @@
+id: accion-reiniciar-servicio
+mensaje: "Reiniciá wireplumber."
+espera:
+  herramienta: system_action
+  argumentos: { action: restart_service, target: wireplumber }
+  respuesta_contiene: ["confirm"]

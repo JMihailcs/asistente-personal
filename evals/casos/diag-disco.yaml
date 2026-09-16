@@ -1,0 +1,6 @@
+id: diag-disco
+mensaje: "¿Cuánto espacio me queda en disco?"
+espera:
+  herramienta: diagnostics
+  argumentos: { check: disk }
+  fundamentada: true

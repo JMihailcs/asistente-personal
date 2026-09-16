@@ -1,0 +1,5 @@
+id: tarea-lista-inexistente
+mensaje: "¿Qué tareas tengo en mi lista de Vacaciones?"
+espera:
+  herramienta: tasks
+  argumentos: { action: list, list_name: "Vacaciones" }

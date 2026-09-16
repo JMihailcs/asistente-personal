@@ -1,0 +1,4 @@
+id: saludo
+mensaje: "Hola, ¿todo bien?"
+espera:
+  herramienta: ninguna

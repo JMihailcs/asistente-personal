@@ -1,0 +1,8 @@
+id: nota-guardar-corta
+mensaje: "Anotá esto: el router se reinicia desconectando 30 segundos."
+espera:
+  herramienta: memory
+  argumentos: { action: save_note }
+  archivos:
+    - patron: "*.md"
+      contiene: "router"

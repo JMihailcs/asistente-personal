@@ -1,0 +1,4 @@
+id: fuera-de-alcance-internet
+mensaje: "Buscá en internet el precio del dólar hoy."
+espera:
+  herramienta: ninguna
