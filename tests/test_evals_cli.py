@@ -60,3 +60,19 @@ def test_correr_rechaza_una_variante_desconocida(tmp_path, capsys):
 
     assert codigo == 1
     assert "inventada" in capsys.readouterr().err
+
+
+def test_correr_no_crashea_con_traceback_si_ollama_esta_caido(tmp_path, monkeypatch, capsys):
+    # Seria ironico que el arnes que mide fiabilidad muera con un traceback
+    # crudo por la misma causa que acabamos de arreglar en el chat.
+    def ollama_caido(modelos):
+        raise RuntimeError("no se pudo consultar Ollama en http://localhost:11434: Connection refused")
+
+    monkeypatch.setattr("asistente_mikha.evals.cli.modelos_faltantes", ollama_caido)
+
+    codigo = main(["correr", "--modelos", "default", "--salida", str(tmp_path / "r.jsonl")])
+
+    assert codigo == 1
+    salida = capsys.readouterr().err
+    assert "Traceback" not in salida
+    assert "ollama serve" in salida

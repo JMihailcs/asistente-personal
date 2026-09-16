@@ -51,7 +51,13 @@ def _correr(args: argparse.Namespace) -> int:
         print(f"no hay casos en {args.casos}", file=sys.stderr)
         return 1
 
-    faltantes = modelos_faltantes(args.modelos)
+    try:
+        faltantes = modelos_faltantes(args.modelos)
+    except RuntimeError as error:
+        # Un traceback crudo no le dice a nadie que hacer, y este es el
+        # instrumento con el que vamos a medir fiabilidad.
+        print(f"{error}\nLevantalo con 'ollama serve' y volve a intentar.", file=sys.stderr)
+        return 1
     if faltantes:
         print(
             f"modelos no descargados en Ollama: {', '.join(faltantes)}. "
