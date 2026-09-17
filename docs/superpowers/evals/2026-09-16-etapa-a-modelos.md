@@ -111,3 +111,68 @@ La pregunta útil cambió. Con `qwen3:8b` al 100% en 17.1s y
 latencia por ese 10%. Lo que sí vale medir es **si el chain-of-thought
 sube a `hermes3:8b` o `llama3.1:8b` al 100% conservando su ventaja de
 velocidad**. Esa es la Etapa B propuesta.
+
+---
+
+# Etapa B — parcial (interrumpida)
+
+Corrida sobre `hermes3:8b` y `llama3.1:8b`, que son los que tenían
+margen: los dos qwen ya estaban en 100% y ninguna variante podía
+mejorarlos.
+
+**`hermes3:8b` quedó completo** (330 corridas, las tres variantes).
+`llama3.1:8b` quedó en 51 de 330 y se retoma con el mismo comando: el
+barrido es reanudable y saltea lo hecho.
+
+## hermes3:8b — ninguna variante ayuda
+
+| variante | herramienta | argumentos | efecto | respuesta | fundamentada | latencia |
+|---|---|---|---|---|---|---|
+| **baseline** | **86%** | **90%** | 94% | 94% | 99% | **2.6s** |
+| cot_prompt | 86% | 90% | 95% | 95% | 99% | 3.6s |
+| cot_arg | 82% | 86% | 89% | 78% | 95% | 5.4s |
+| two_step | 67% | 76% | 87% | 89% | 95% | 7.3s |
+
+**El patrón es monótono: cuanto más razonamiento intermedio, peor.**
+Nada (86%) → texto en el prompt (86%) → campo en la llamada (82%) →
+turno separado (67%).
+
+- **`cot_prompt` no mueve la aguja.** Un punto arriba en dos
+  dimensiones, que sobre 110 corridas es una sola corrida — ruido. Y
+  38% más lento. Tampoco rompió nada: el riesgo anotado en el spec (que
+  el modelo escriba su razonamiento en vez de llamar la herramienta) no
+  se materializó.
+- **`cot_arg` empeora las cinco dimensiones**, con el golpe más fuerte
+  en "respuesta" (94% → 78%). El spec apostaba a que razonar dentro de
+  la llamada "deja de competir con llamar la herramienta". **Era
+  incorrecto**: un `motivo` obligatorio no le ordena el pensamiento al
+  modelo, le agrega un argumento más que puede llenar mal. En un 8B que
+  ya viene justo de capacidad de function-calling, un parámetro extra es
+  carga, no ayuda.
+- **`two_step` es el peor** (86% → 67% en elección de herramienta) y
+  casi 3x más lento. El planificador corre sin herramientas
+  registradas, a propósito, para que no degenere en el baseline con
+  pasos de más — pero eso significa que escribe el plan **de memoria** y
+  ese plan entra al contexto del ejecutor con formato de instrucción.
+  Cuando el planificador alucina, no se corrige: **contamina**. Le
+  agregamos una fuente de error aguas arriba y le pedimos al modelo que
+  confíe en ella.
+
+## Para retomar
+
+```bash
+OLLAMA_MODELS=/var/lib/ollama uv run mikha-eval correr \
+  --modelos hermes3:8b,llama3.1:8b \
+  --variantes cot_prompt,cot_arg,two_step \
+  --repeticiones 5 --salida evals/resultados/etapa-b.jsonl
+```
+
+Falta `llama3.1:8b`, cuyo caso es distinto: sus tres fallos del baseline
+son todos de la clase "no debería haber llamado ninguna herramienta", así
+que todavía es posible que ahí el razonamiento sí frene la ansiedad. Es
+la última chance de que alguna variante sirva.
+
+**Nota operativa:** Ollama tiene que estar corriendo y leyendo
+`/var/lib/ollama`, que es donde están los modelos. Lo limpio es
+`sudo systemctl enable --now ollama`; el `OLLAMA_MODELS` del comando es
+el rodeo para cuando el servicio está apagado.
