@@ -1,0 +1,11 @@
+id: tarea-completar
+prepara:
+  tareas:
+    Compras: ["comprar leche", "comprar pan"]
+mensaje: "Marca como hecha la tarea de comprar leche en mi lista de Compras."
+espera:
+  herramienta: tasks
+  argumentos: { action: complete, list_name: "Compras" }
+  archivos:
+    - patron: "Tareas/*.md"
+      contiene: "- [x] comprar leche"

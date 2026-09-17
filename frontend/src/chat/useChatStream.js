@@ -90,57 +90,73 @@ export function useChatStream() {
     const decoder = new TextDecoder();
     let buffer = '';
     let sawDone = false;
+    let sawToken = false;
+    let failure = null;
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const [events, rest] = parseSSE(buffer);
-      buffer = rest;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const [events, rest] = parseSSE(buffer);
+        buffer = rest;
 
-      for (const event of events) {
-        if (event.name === 'token') {
-          setState('speaking');
-          levelRef.current = Math.min(1, levelRef.current + LEVEL_BUMP);
-          setMessages((prev) => {
-            const next = [...prev];
-            const last = { ...next[next.length - 1] };
-            last.text += event.data?.text ?? '';
-            next[next.length - 1] = last;
-            return next;
-          });
-        } else if (event.name === 'done') {
-          sawDone = true;
-          const pending = event.data?.pending_action_ids ?? [];
-          setMessages((prev) => {
-            const next = [...prev];
-            next[next.length - 1] = {
-              role: 'assistant',
-              text: event.data.reply,
-              durationSeconds: event.data.duration_seconds,
-              queriedAt: event.data.queried_at,
-              pendingActionIds: pending,
-            };
-            return next;
-          });
-          setState(pending.length > 0 ? 'awaiting' : 'idle');
+        for (const event of events) {
+          if (event.name === 'token') {
+            sawToken = true;
+            setState('speaking');
+            levelRef.current = Math.min(1, levelRef.current + LEVEL_BUMP);
+            setMessages((prev) => {
+              const next = [...prev];
+              const last = { ...next[next.length - 1] };
+              last.text += event.data?.text ?? '';
+              next[next.length - 1] = last;
+              return next;
+            });
+          } else if (event.name === 'done') {
+            sawDone = true;
+            const pending = event.data?.pending_action_ids ?? [];
+            setMessages((prev) => {
+              const next = [...prev];
+              next[next.length - 1] = {
+                role: 'assistant',
+                text: event.data.reply,
+                durationSeconds: event.data.duration_seconds,
+                queriedAt: event.data.queried_at,
+                pendingActionIds: pending,
+              };
+              return next;
+            });
+            setState(pending.length > 0 ? 'awaiting' : 'idle');
+          } else if (event.name === 'error') {
+            // El backend ya mando 200 y no puede volver atras con un 500, asi
+            // que sus fallas viajan como un evento mas del stream.
+            failure = event.data?.message || 'el asistente no pudo responder';
+          }
         }
+        if (failure) break;
       }
+    } catch (err) {
+      // La conexion se corto a mitad de la lectura. Sin atrapar esto, send()
+      // lanzaba y la UI se quedaba en "pensando" para siempre.
+      failure = err.message || 'la conexión con el backend se cortó';
     }
 
     if (!sawDone) {
-      // El stream corto a mitad: recien aca queda marcado incompleto. Nunca se
-      // muestra una respuesta truncada como si estuviera terminada.
-      setMessages((prev) => {
-        const next = [...prev];
-        next[next.length - 1] = {
-          ...next[next.length - 1],
-          pending: false,
-          incomplete: true,
-        };
-        return next;
-      });
-      setError('la respuesta se cortó antes de terminar');
+      if (sawToken) {
+        // Ya habia texto en pantalla: se conserva, marcado incompleto. Nunca
+        // se muestra una respuesta truncada como si estuviera terminada.
+        setMessages((prev) => {
+          const next = [...prev];
+          next[next.length - 1] = { ...next[next.length - 1], pending: false, incomplete: true };
+          return next;
+        });
+      } else {
+        // No llego ni un token: se retira el hueco en vez de dejar un bloque
+        // vacio diciendo "pensando".
+        setMessages((prev) => prev.slice(0, -1));
+      }
+      setError(failure ?? 'la respuesta se cortó antes de terminar');
       setState('idle');
     }
   }, []);

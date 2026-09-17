@@ -1,0 +1,8 @@
+id: nota-guardar
+mensaje: "Guarda una nota titulada 'Idea de cafe' que diga: quiero abrir una cafeteria de especialidad."
+espera:
+  herramienta: memory
+  argumentos: { action: save_note }
+  archivos:
+    - patron: "*.md"
+      contiene: "cafeteria de especialidad"

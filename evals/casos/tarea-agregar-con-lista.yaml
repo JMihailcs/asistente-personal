@@ -1,0 +1,8 @@
+id: tarea-agregar-con-lista
+mensaje: "Agrega la tarea 'comprar granos de cafe' a mi lista de Idea de negocio."
+espera:
+  herramienta: tasks
+  argumentos: { action: add, list_name: "Idea de negocio" }
+  archivos:
+    - patron: "Tareas/*.md"
+      contiene: "comprar granos de cafe"

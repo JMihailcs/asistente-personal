@@ -93,3 +93,44 @@ def test_ollama_health_url_derives_from_configured_base_url(monkeypatch):
 def test_ollama_health_url_default(monkeypatch):
     monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
     assert _ollama_health_url() == "http://localhost:11434/api/tags"
+
+
+def test_chat_devuelve_503_accionable_si_el_modelo_falla(monkeypatch):
+    # Un 500 pelado no le dice a nadie que hacer. Las dos causas reales son
+    # Ollama apagado o el alias 'default' inexistente, y cada una tiene su
+    # comando.
+    from pydantic_ai.exceptions import ModelAPIError
+    from fastapi.testclient import TestClient
+
+    from asistente_mikha.main import app
+
+    async def turno_que_falla(session_id: str, message: str):
+        raise ModelAPIError(model_name="default", message="Connection error.")
+
+    monkeypatch.setattr("asistente_mikha.api.routes.run_turn", turno_que_falla)
+
+    with TestClient(app) as client:
+        response = client.post("/chat", json={"session_id": "s", "message": "hola"})
+
+    assert response.status_code == 503
+    detalle = response.json()["detail"]
+    assert "ollama" in detalle.lower()
+    assert "serve" in detalle
+
+
+def test_chat_nombra_el_alias_cuando_falta_el_modelo(monkeypatch):
+    from pydantic_ai.exceptions import ModelAPIError
+    from fastapi.testclient import TestClient
+
+    from asistente_mikha.main import app
+
+    async def turno_que_falla(session_id: str, message: str):
+        raise ModelAPIError(model_name="default", message='model "default" not found')
+
+    monkeypatch.setattr("asistente_mikha.api.routes.run_turn", turno_que_falla)
+
+    with TestClient(app) as client:
+        response = client.post("/chat", json={"session_id": "s", "message": "hola"})
+
+    assert response.status_code == 503
+    assert "ollama cp" in response.json()["detail"]

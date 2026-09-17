@@ -201,4 +201,77 @@ describe('useChatStream', () => {
     await waitFor(() => expect(result.current.error).toBeTruthy());
     expect(result.current.state).toBe('idle');
   });
+
+  it('muestra el error que manda el backend en vez de quedarse pensando', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        sseResponse([
+          'event: error\ndata: {"message":"No hay conexion con Ollama. Levantalo con \'ollama serve\'."}\n\n',
+        ]),
+      ),
+    );
+
+    const { result } = renderHook(() => useChatStream());
+    await act(async () => {
+      await result.current.send('hola');
+    });
+
+    await waitFor(() => expect(result.current.error).toContain('ollama serve'));
+    expect(result.current.state).toBe('idle');
+    // No queda un bloque vacio del asistente colgado diciendo "pensando".
+    expect(result.current.messages.at(-1).role).toBe('user');
+  });
+
+  it('no se cuelga si la conexion se corta a mitad de la lectura', async () => {
+    // El caso real: el backend manda 200, el generador explota, y la conexion
+    // muere sin un solo byte. Sin atrapar esto, send() lanza y la UI se queda
+    // en "pensando" para siempre.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        body: {
+          getReader: () => ({
+            read: async () => {
+              throw new TypeError('network error');
+            },
+            releaseLock() {},
+          }),
+        },
+      })),
+    );
+
+    const { result } = renderHook(() => useChatStream());
+    await act(async () => {
+      await result.current.send('hola');
+    });
+
+    await waitFor(() => expect(result.current.error).toBeTruthy());
+    expect(result.current.state).toBe('idle');
+    expect(result.current.messages.at(-1).pending).toBeFalsy();
+  });
+
+  it('conserva los tokens ya recibidos cuando llega un error a mitad', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        sseResponse([
+          'event: token\ndata: {"text":"Hola "}\n\n',
+          'event: error\ndata: {"message":"se corto"}\n\n',
+        ]),
+      ),
+    );
+
+    const { result } = renderHook(() => useChatStream());
+    await act(async () => {
+      await result.current.send('hola');
+    });
+
+    await waitFor(() => expect(result.current.error).toBe('se corto'));
+    const last = result.current.messages.at(-1);
+    expect(last.text).toBe('Hola ');
+    expect(last.incomplete).toBe(true);
+    expect(last.pending).toBeFalsy();
+  });
 });

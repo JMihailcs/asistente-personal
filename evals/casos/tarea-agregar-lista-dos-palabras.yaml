@@ -1,0 +1,8 @@
+id: tarea-agregar-lista-dos-palabras
+mensaje: "Agrega la tarea 'llamar al plomero' a mi lista de Casa Nueva."
+espera:
+  herramienta: tasks
+  argumentos: { action: add, list_name: "Casa Nueva" }
+  archivos:
+    - patron: "Tareas/*.md"
+      contiene: "llamar al plomero"

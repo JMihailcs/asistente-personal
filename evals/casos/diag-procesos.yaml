@@ -1,0 +1,5 @@
+id: diag-procesos
+mensaje: "¿Qué procesos están comiendo más memoria?"
+espera:
+  herramienta: diagnostics
+  argumentos: { check: processes }

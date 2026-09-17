@@ -1,0 +1,5 @@
+id: accion-vaciar-cache
+mensaje: "Vaciá la caché de scratch del asistente."
+espera:
+  herramienta: system_action
+  argumentos: { action: clear_directory_cache, target: asistente_scratch }

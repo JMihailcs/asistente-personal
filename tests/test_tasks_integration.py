@@ -14,17 +14,12 @@ def _clean_state(tmp_path, monkeypatch):
     reset_sessions_for_tests()
 
 
-# El modelo local de 12B omite `list_name` de forma intermitente al llamar a
-# `tasks` con frases como "a mi lista de X" (confirmado inspeccionando los
-# ToolCallPart), asi que este test pasa solo en algunas corridas. Las
-# aserciones se mantienen estrictas a proposito — verifican el archivo real
-# en disco, no solo el texto de la respuesta — y el xfail no estricto deja
-# constancia del problema sin poner la suite en rojo. Se retira cuando se
-# evaluen modelos alternativos (ver docs/superpowers/specs/).
-@pytest.mark.xfail(
-    reason="fiabilidad de tool-calling del modelo local, pendiente de evaluar otros modelos",
-    strict=False,
-)
+# Este test llevo un xfail desde la Fase 3: mistral-nemo omitia `list_name`
+# con frases como "a mi lista de Idea de negocio". La Fase 5 lo midio
+# (0 de 5, sistematico, no intermitente) y cambio el modelo a qwen3:8b, que
+# acierta este caso 5 de 5. Las aserciones siguen verificando el archivo real
+# en disco, no solo el texto de la respuesta. Si vuelve a fallar, mirar
+# primero a que modelo apunta el alias 'default'.
 @pytest.mark.integration
 async def test_agent_adds_and_lists_task(tmp_path):
     add_result = await run_turn(

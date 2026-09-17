@@ -1,0 +1,8 @@
+id: tarea-agregar-otra-lista
+mensaje: "Anotá 'sacar la basura' en mi lista de Casa."
+espera:
+  herramienta: tasks
+  argumentos: { action: add, list_name: "Casa" }
+  archivos:
+    - patron: "Tareas/*.md"
+      contiene: "sacar la basura"
