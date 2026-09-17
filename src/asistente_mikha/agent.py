@@ -81,12 +81,19 @@ def _build_model(model_name: str = DEFAULT_MODEL_NAME) -> OpenAIChatModel:
 
 def build_agent(model_name: str = DEFAULT_MODEL_NAME) -> Agent:
     # temperature=0 hace determinista la decisión de invocar una herramienta:
-    # con muestreo por defecto, este modelo de 12B a veces alucina resultados
-    # o inventa texto en vez de llamar a la tool correspondiente.
+    # con muestreo por defecto el modelo a veces alucina resultados o inventa
+    # texto en vez de llamar a la tool correspondiente.
+    #
+    # reasoning_effort="none" apaga el razonamiento de los modelos thinking
+    # (el alias 'default' apunta a qwen3:8b). Medido en la Fase 5: sin
+    # thinking acierta 21 de 22 casos a 3.9s; con thinking, 22 de 22 a 17.1s.
+    # Se eligió la velocidad. El caso que se pierde es preguntar a qué lista
+    # va una tarea cuando no se dijo: inventa una. Los modelos que no razonan
+    # ignoran el parámetro sin error (verificado con mistral-nemo y hermes3).
     agent = Agent(
         _build_model(model_name),
         system_prompt=SYSTEM_PROMPT,
-        model_settings={"temperature": 0.0},
+        model_settings={"temperature": 0.0, "openai_reasoning_effort": "none"},
     )
     for registered in registry.all_tools().values():
         agent.tool_plain(registered.func)
