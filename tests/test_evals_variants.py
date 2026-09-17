@@ -17,8 +17,8 @@ def ejemplo(action: str, list_name: str = "") -> dict:
     return {"status": "ok", "action": action, "list_name": list_name}
 
 
-def test_las_cuatro_variantes_estan_declaradas():
-    assert VARIANTES == ("baseline", "cot_prompt", "cot_arg", "two_step")
+def test_las_variantes_estan_declaradas():
+    assert VARIANTES == ("baseline", "cot_prompt", "cot_arg", "two_step", "no_think")
 
 
 def test_con_motivo_agrega_el_parametro_como_obligatorio():
@@ -60,3 +60,21 @@ def test_construir_agente_rechaza_una_variante_desconocida():
         construir_agente("un-modelo", "no-existe")
 
     assert "no-existe" in str(error.value)
+
+
+def test_no_think_apaga_el_razonamiento_del_modelo():
+    from asistente_mikha.evals.variants import construir_agente
+
+    agente = construir_agente("qwen3:8b", "no_think")
+
+    assert agente.model_settings["openai_reasoning_effort"] == "none"
+    assert agente.model_settings["temperature"] == 0.0
+
+
+def test_las_demas_variantes_no_tocan_el_razonamiento():
+    # Si baseline apagara el thinking, la comparacion no mediria nada.
+    from asistente_mikha.evals.variants import construir_agente
+
+    agente = construir_agente("qwen3:8b", "baseline")
+
+    assert "openai_reasoning_effort" not in agente.model_settings

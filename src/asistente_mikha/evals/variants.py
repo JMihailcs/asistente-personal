@@ -11,7 +11,7 @@ from asistente_mikha.agent import SYSTEM_PROMPT, _build_model
 from asistente_mikha.evals.checks import ToolCall, extraer_llamadas
 from asistente_mikha.tools import registry
 
-VARIANTES = ("baseline", "cot_prompt", "cot_arg", "two_step")
+VARIANTES = ("baseline", "cot_prompt", "cot_arg", "two_step", "no_think")
 
 INSTRUCCION_COT = (
     "\n\nAntes de actuar, pensá paso a paso qué te están pidiendo y qué "
@@ -74,7 +74,15 @@ def construir_agente(modelo: str, variante: str) -> Agent:
     elif variante == "cot_arg":
         prompt += INSTRUCCION_MOTIVO
 
-    agente = Agent(_build_model(modelo), system_prompt=prompt, model_settings={"temperature": 0.0})
+    ajustes: dict[str, Any] = {"temperature": 0.0}
+    if variante == "no_think":
+        # Apaga el razonamiento entrenado de los modelos thinking (qwen3). Por el
+        # endpoint /v1 de Ollama 0.34 solo funciona reasoning_effort="none":
+        # 'think: false' y '/no_think' en el mensaje se ignoran. Verificado en
+        # vivo: 796 tokens y 29.6s pasan a 4 tokens y 0.3s, misma respuesta.
+        ajustes["openai_reasoning_effort"] = "none"
+
+    agente = Agent(_build_model(modelo), system_prompt=prompt, model_settings=ajustes)
     for registrada in registry.all_tools().values():
         funcion = con_motivo(registrada.func) if variante == "cot_arg" else registrada.func
         agente.tool_plain(funcion)
