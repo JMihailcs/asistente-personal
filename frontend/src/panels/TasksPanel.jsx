@@ -1,7 +1,14 @@
 import { usePanelData } from './usePanelData.js';
+import EditableRow from './EditableRow.jsx';
+import { proposeChange } from './proposeChange.js';
 
-export default function TasksPanel({ refreshKey }) {
+export default function TasksPanel({ refreshKey, onProposed }) {
   const { data, disconnected } = usePanelData('/tasks', { refreshKey });
+
+  async function propose(payload) {
+    await proposeChange(payload);
+    onProposed?.();
+  }
 
   return (
     <div className="panel">
@@ -11,9 +18,20 @@ export default function TasksPanel({ refreshKey }) {
         <div key={list.name} style={{ marginBottom: 12 }}>
           <div className="label" style={{ marginBottom: 4 }}>{list.name}</div>
           {list.tasks.map((task) => (
-            <div key={task.text} style={{ fontSize: 13, opacity: task.done ? 0.45 : 1, lineHeight: 1.6 }}>
-              {task.done ? '☑' : '☐'} {task.text}
-            </div>
+            <EditableRow
+              key={task.text}
+              initialValue={task.text}
+              onEdit={(newText) =>
+                propose({ action: 'edit_task', list_name: list.name, text: task.text, new_text: newText })
+              }
+              onDelete={() =>
+                propose({ action: 'delete_task', list_name: list.name, text: task.text })
+              }
+            >
+              <div style={{ fontSize: 13, opacity: task.done ? 0.45 : 1, lineHeight: 1.6 }}>
+                {task.done ? '☑' : '☐'} {task.text}
+              </div>
+            </EditableRow>
           ))}
         </div>
       ))}

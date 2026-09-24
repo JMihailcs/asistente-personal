@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import SystemPanel from './SystemPanel.jsx';
 import TasksPanel from './TasksPanel.jsx';
 import NotesPanel from './NotesPanel.jsx';
@@ -93,5 +93,55 @@ describe('PendingActionsPanel', () => {
     await waitFor(() => expect(screen.getByText(/restart_service/)).toBeInTheDocument());
     expect(screen.getByRole('button', { name: /aprobar/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /rechazar/i })).toBeInTheDocument();
+  });
+});
+
+describe('editar y eliminar', () => {
+  it('eliminar una tarea solo propone el cambio', async () => {
+    const fetchMock = vi.fn(async (url) => ({
+      ok: true,
+      json: async () =>
+        url === '/tasks'
+          ? { lists: [{ name: 'Casa', tasks: [{ text: 'lavar', done: false }] }] }
+          : {},
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const onProposed = vi.fn();
+
+    render(<TasksPanel refreshKey={0} onProposed={onProposed} />);
+    fireEvent.click(await screen.findByRole('button', { name: /eliminar/i }));
+
+    await waitFor(() => expect(onProposed).toHaveBeenCalled());
+    const call = fetchMock.mock.calls.find(([url]) => url === '/changes');
+    expect(JSON.parse(call[1].body)).toEqual({
+      action: 'delete_task',
+      list_name: 'Casa',
+      text: 'lavar',
+    });
+  });
+
+  it('editar una nota propone el nuevo titulo', async () => {
+    const fetchMock = vi.fn(async (url) => ({
+      ok: true,
+      json: async () =>
+        url === '/notes/recent'
+          ? { notes: [{ id: 'idea', title: 'Idea', created: '2026', excerpt: 'x' }] }
+          : {},
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(<NotesPanel refreshKey={0} />);
+    fireEvent.click(await screen.findByRole('button', { name: /editar/i }));
+    fireEvent.change(screen.getByLabelText(/nuevo texto/i), { target: { value: 'Idea 2' } });
+    fireEvent.click(screen.getByRole('button', { name: /guardar/i }));
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([url]) => url === '/changes');
+      expect(JSON.parse(call[1].body)).toEqual({
+        action: 'edit_note',
+        note: 'idea',
+        new_title: 'Idea 2',
+      });
+    });
   });
 });

@@ -10,6 +10,7 @@ import PendingActionsPanel from './panels/PendingActionsPanel.jsx';
 export default function App() {
   const { messages, send, state, level, error } = useChatStream();
   const [refreshKey, setRefreshKey] = useState(0);
+  const bump = () => setRefreshKey((key) => key + 1);
   const [clock, setClock] = useState('');
 
   // Los paneles se recargan cuando termina un turno, que es cuando pueden
@@ -66,10 +67,10 @@ export default function App() {
           <SystemPanel />
           <PendingActionsPanel
             refreshKey={refreshKey}
-            onResolved={() => setRefreshKey((key) => key + 1)}
+            onResolved={bump}
           />
-          <TasksPanel refreshKey={refreshKey} />
-          <NotesPanel refreshKey={refreshKey} />
+          <TasksPanel refreshKey={refreshKey} onProposed={bump} />
+          <NotesPanel refreshKey={refreshKey} onProposed={bump} />
         </aside>
       </div>
     </div>

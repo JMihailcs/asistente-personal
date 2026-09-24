@@ -91,3 +91,41 @@ def list_vault_notes(vault_path: Path) -> list[Note]:
         if note is not None:
             notes.append(note)
     return notes
+
+
+def find_notes(vault_path: Path, ref: str) -> list[Note]:
+    """Ubica notas por nombre de archivo o por titulo exacto (sin mayusculas).
+
+    Puede devolver varias si hay titulos repetidos; quien llama decide que
+    hacer con la ambiguedad.
+    """
+    wanted = ref.strip().lower()
+    notes = list_vault_notes(vault_path)
+    by_stem = [n for n in notes if n.path.stem.lower() == wanted]
+    if by_stem:
+        return by_stem
+    return [n for n in notes if n.title.strip().lower() == wanted]
+
+
+def update_note(
+    note: Note, new_title: str | None = None, new_content: str | None = None
+) -> Note:
+    """Reescribe una nota conservando su archivo, tags y fecha de creacion."""
+    title = new_title if new_title else note.title
+    content = new_content if new_content is not None else note.content
+    frontmatter = {"title": title, "tags": note.tags, "created": note.created}
+    text = (
+        "---\n"
+        + yaml.safe_dump(frontmatter, allow_unicode=True, sort_keys=False)
+        + "---\n\n"
+        + content
+        + "\n"
+    )
+    note.path.write_text(text, encoding="utf-8")
+    return Note(
+        path=note.path, title=title, tags=note.tags, created=note.created, content=content
+    )
+
+
+def delete_note(note: Note) -> None:
+    note.path.unlink()

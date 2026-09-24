@@ -25,6 +25,7 @@ from asistente_mikha.api.models import (
     NotesResponse,
     PendingActionResponse,
     PendingActionsResponse,
+    ProposeChangeRequest,
     SystemResponse,
     TaskItemResponse,
     TaskListResponse,
@@ -32,6 +33,7 @@ from asistente_mikha.api.models import (
 )
 from asistente_mikha.config import get_ollama_base_url, get_vault_path
 from asistente_mikha.confirmation import get_default_store
+from asistente_mikha.memory.tools import propose_change
 from asistente_mikha.memory.tasks import list_task_lists, list_tasks
 from asistente_mikha.memory.vault import list_vault_notes
 from asistente_mikha.tools.diagnostics import (
@@ -181,10 +183,25 @@ async def recent_notes() -> NotesResponse:
     notes.sort(key=lambda n: n.created, reverse=True)
     return NotesResponse(
         notes=[
-            NoteResponse(title=n.title, created=n.created, excerpt=n.content[:160])
+            NoteResponse(id=n.path.stem, title=n.title, created=n.created, excerpt=n.content[:160])
             for n in notes[:RECENT_NOTES_LIMIT]
         ]
     )
+
+
+@router.post("/changes")
+async def propose(request: ProposeChangeRequest) -> dict:
+    """Propone editar/eliminar una nota o tarea desde la UI.
+
+    No ejecuta nada: deja una accion pendiente que se aprueba por
+    /confirm/{action_id}, igual que las propuestas del agente.
+    """
+    result = propose_change(**request.model_dump())
+    if result["status"] in ("not_found", "list_not_found"):
+        raise HTTPException(status_code=404, detail=result)
+    if result["status"] != "pending_confirmation":
+        raise HTTPException(status_code=422, detail=result)
+    return result
 
 
 @router.get("/actions/pending", response_model=PendingActionsResponse)
