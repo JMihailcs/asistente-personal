@@ -120,6 +120,26 @@ describe('editar y eliminar', () => {
     });
   });
 
+  it('si el backend rechaza el cambio, avisa y no refresca', async () => {
+    const fetchMock = vi.fn(async (url) => ({
+      ok: url !== '/changes',
+      json: async () =>
+        url === '/tasks'
+          ? { lists: [{ name: 'Casa', tasks: [{ text: 'lavar', done: false }] }] }
+          : {},
+    }));
+    vi.stubGlobal('fetch', fetchMock);
+    const onProposed = vi.fn();
+
+    render(<TasksPanel refreshKey={0} onProposed={onProposed} />);
+    fireEvent.click(await screen.findByRole('button', { name: /editar/i }));
+    fireEvent.click(screen.getByRole('button', { name: /guardar/i }));
+
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(screen.getByLabelText('nuevo texto')).toBeInTheDocument();
+    expect(onProposed).not.toHaveBeenCalled();
+  });
+
   it('editar una nota propone el nuevo titulo', async () => {
     const fetchMock = vi.fn(async (url) => ({
       ok: true,

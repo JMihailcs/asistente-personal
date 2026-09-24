@@ -4,6 +4,13 @@ import { useState } from 'react';
 export default function EditableRow({ children, initialValue, onEdit, onDelete }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(initialValue);
+  const [failed, setFailed] = useState(false);
+
+  async function run(action) {
+    const ok = await action();
+    setFailed(ok === false);
+    return ok !== false;
+  }
 
   if (editing) {
     return (
@@ -16,13 +23,21 @@ export default function EditableRow({ children, initialValue, onEdit, onDelete }
         <button
           type="button"
           onClick={async () => {
-            await onEdit(value);
-            setEditing(false);
+            if (await run(() => onEdit(value))) setEditing(false);
           }}
         >
           guardar
         </button>
-        <button type="button" onClick={() => setEditing(false)}>cancelar</button>
+        <button
+          type="button"
+          onClick={() => {
+            setFailed(false);
+            setEditing(false);
+          }}
+        >
+          cancelar
+        </button>
+        {failed && <span role="alert">no se pudo proponer el cambio</span>}
       </div>
     );
   }
@@ -31,7 +46,8 @@ export default function EditableRow({ children, initialValue, onEdit, onDelete }
     <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
       <div style={{ flex: 1 }}>{children}</div>
       <button type="button" onClick={() => setEditing(true)}>editar</button>
-      <button type="button" onClick={() => onDelete()}>eliminar</button>
+      <button type="button" onClick={() => run(() => onDelete())}>eliminar</button>
+      {failed && <span role="alert">no se pudo proponer el cambio</span>}
     </div>
   );
 }

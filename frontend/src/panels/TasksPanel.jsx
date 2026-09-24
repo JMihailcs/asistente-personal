@@ -6,8 +6,9 @@ export default function TasksPanel({ refreshKey, onProposed }) {
   const { data, disconnected } = usePanelData('/tasks', { refreshKey });
 
   async function propose(payload) {
-    await proposeChange(payload);
-    onProposed?.();
+    const ok = await proposeChange(payload);
+    if (ok) onProposed?.();
+    return ok;
   }
 
   return (
@@ -17,9 +18,9 @@ export default function TasksPanel({ refreshKey, onProposed }) {
       {data?.lists.map((list) => (
         <div key={list.name} style={{ marginBottom: 12 }}>
           <div className="label" style={{ marginBottom: 4 }}>{list.name}</div>
-          {list.tasks.map((task) => (
+          {list.tasks.map((task, index) => (
             <EditableRow
-              key={task.text}
+              key={`${task.text}-${index}`}
               initialValue={task.text}
               onEdit={(newText) =>
                 propose({ action: 'edit_task', list_name: list.name, text: task.text, new_text: newText })

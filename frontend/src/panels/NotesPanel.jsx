@@ -6,8 +6,9 @@ export default function NotesPanel({ refreshKey, onProposed }) {
   const { data, disconnected } = usePanelData('/notes/recent', { refreshKey });
 
   async function propose(payload) {
-    await proposeChange(payload);
-    onProposed?.();
+    const ok = await proposeChange(payload);
+    if (ok) onProposed?.();
+    return ok;
   }
 
   return (
