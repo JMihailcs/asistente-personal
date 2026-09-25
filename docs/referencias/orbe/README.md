@@ -95,7 +95,7 @@ luego la mitad del polvo.
 ### Segunda vuelta
 
 Malla triangulada de verdad (envolvente convexa de puntos irregulares,
-`buildSurfaceMesh`), orbe más grande (contenedor de 440 px, cámara más
+`buildSurfaceMesh`), orbe más grande (contenedor de `min(440px, 50vh)`, cámara más
 cerca), más bokeh y más grande, niebla central más densa y brasas más
 intensas con un resplandor casi blanco en el foco principal. Medición en
 el mismo entorno de software: ~47 fps a pixel ratio 1 (60 antes de la
