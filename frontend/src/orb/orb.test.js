@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { createOrb, buildRadialTree } from './orb.js';
+import { createOrb, buildSurfaceMesh } from './orb.js';
 
 // Three.js necesita WebGL, que jsdom no provee: se mockea el renderer.
 vi.mock('three', async () => {
@@ -16,16 +16,10 @@ vi.mock('three', async () => {
   };
 });
 
-describe('buildRadialTree', () => {
-  // Nodos a distancias crecientes del centro, en distintas direcciones.
-  const cloud = Float32Array.from([
-    0.1, 0, 0,
-    0.4, 0.1, 0,
-    0, 0.5, 0.1,
-    0.8, 0.2, 0,
-    0, 0.9, 0.2,
-    0.2, 0.2, 0.95,
-  ]);
+describe('buildSurfaceMesh', () => {
+  // Octaedro: 6 direcciones sobre la esfera. Su triangulacion tiene 8 caras
+  // y 12 aristas (Euler: V - E + F = 2).
+  const octahedron = Float32Array.from([1, 0, 0, -1, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, 1, 0, 0, -1]);
   const COUNT = 6;
 
   function pairs(edges) {
@@ -34,41 +28,29 @@ describe('buildRadialTree', () => {
     return out;
   }
 
-  const distance = (i) => Math.hypot(cloud[i * 3], cloud[i * 3 + 1], cloud[i * 3 + 2]);
-
-  it('conecta todos los nodos en un solo arbol', () => {
-    // Un arbol que cubre N nodos tiene exactamente N-1 aristas: ni un bosque
-    // de trozos sueltos, ni ciclos.
-    expect(buildRadialTree(cloud, COUNT).length / 2).toBe(COUNT - 1);
+  it('triangula la superficie: 3V - 6 aristas', () => {
+    expect(buildSurfaceMesh(octahedron, COUNT).length / 2).toBe(12);
   });
 
-  it('hace crecer las ramas del centro hacia afuera', () => {
-    for (const [parent, child] of pairs(buildRadialTree(cloud, COUNT))) {
-      expect(distance(parent)).toBeLessThanOrEqual(distance(child));
-    }
+  it('no repite aristas ni conecta un nodo consigo mismo', () => {
+    const list = pairs(buildSurfaceMesh(octahedron, COUNT));
+    const keys = list.map(([a, b]) => `${Math.min(a, b)}-${Math.max(a, b)}`);
+
+    expect(new Set(keys).size).toBe(keys.length);
+    for (const [a, b] of list) expect(a).not.toBe(b);
   });
 
-  it('le da un solo padre a cada nodo', () => {
-    const children = pairs(buildRadialTree(cloud, COUNT)).map(([, child]) => child);
+  it('nunca une puntos opuestos de la esfera', () => {
+    // Los antipodas (0-1, 2-3, 4-5) no comparten cara.
+    const keys = pairs(buildSurfaceMesh(octahedron, COUNT)).map(([a, b]) => `${Math.min(a, b)}-${Math.max(a, b)}`);
 
-    expect(new Set(children).size).toBe(children.length);
-  });
-
-  it('deja al nodo mas interno como raiz, sin padre', () => {
-    const children = new Set(pairs(buildRadialTree(cloud, COUNT)).map(([, child]) => child));
-    const root = [...Array(COUNT).keys()].sort((a, b) => distance(a) - distance(b))[0];
-
-    expect(children.has(root)).toBe(false);
-  });
-
-  it('nunca conecta un nodo consigo mismo', () => {
-    for (const [parent, child] of pairs(buildRadialTree(cloud, COUNT))) {
-      expect(parent).not.toBe(child);
-    }
+    expect(keys).not.toContain('0-1');
+    expect(keys).not.toContain('2-3');
+    expect(keys).not.toContain('4-5');
   });
 
   it('no deja indices fuera de la nube', () => {
-    for (const index of buildRadialTree(cloud, COUNT)) {
+    for (const index of buildSurfaceMesh(octahedron, COUNT)) {
       expect(index).toBeGreaterThanOrEqual(0);
       expect(index).toBeLessThan(COUNT);
     }

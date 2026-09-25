@@ -12,15 +12,16 @@ collectui.com/designs/landing-page-ui-design-inspiration/ffec0157-16c4-434c-b06b
 
 ## Por qué importa esta corrección
 
-El orbe de la Fase 4 se construyó mirando las dos imágenes recortadas.
+El orbe de la Fase 4 (ya reemplazado, ver "Estado de la implementación") se construyó mirando las dos imágenes recortadas.
 Lo que quedó afuera del recorte es justamente lo que le da el carácter a
 la referencia: la niebla interior, la luz localizada y el desenfoque de
 las partículas cercanas. El resultado actual es coherente consigo mismo,
 pero es otra cosa.
 
-## Qué tiene la referencia que el orbe actual no
+## Qué tiene la referencia que el orbe de la Fase 4 no tenía
 
-Ordenado por cuánto cambia la lectura de la imagen:
+Ordenado por cuánto cambia la lectura de la imagen. Los "Hoy" describen
+el orbe de la Fase 4, no el actual:
 
 1. **La luz es localizada, no uniforme.** En la referencia hay dos o tres
    focos calientes (ámbar hacia blanco) concentrados en una región, como
@@ -49,7 +50,7 @@ Ordenado por cuánto cambia la lectura de la imagen:
    fondo claro; el ámbar aparece solo donde hay luz. Hoy todo es ámbar
    sobre negro.
 
-## La tensión que hay que resolver antes de implementar
+## La tensión que había que resolver antes de implementar (resuelta: se mantuvo oscuro)
 
 La referencia es **fondo claro**. En la Fase 4 se decidió explícitamente
 adaptarla a oscuro, y el resto del dashboard se construyó sobre esa
@@ -71,8 +72,31 @@ implementa, vale hacer las dos y mirarlas.
 
 ## Costo de rendimiento a tener en cuenta
 
-El orbe actual corre a 60 fps con 1100 nodos y 1099 aristas, medido en
+El orbe de la Fase 4 corría a 60 fps con 1100 nodos y 1099 aristas, medido en
 el navegador. Niebla volumétrica y bokeh son las dos cosas de esta lista
 que sí cuestan: la niebla pide un shader o sprites grandes con
 transparencia, y el bokeh pide partículas grandes con blending. Conviene
 medir de nuevo después de agregarlas, no asumir.
+
+## Estado de la implementación (rediseño OPTIMIND a oscuro)
+
+`frontend/src/orb/orb.js` ya implementa los seis puntos: malla de
+superficie triangulada sobre cáscara arrugada, tres focos ámbar
+móviles, niebla interior, polvo con tamaño/foco variado y bokeh, y tres
+anillos finos. Se mantuvo fondo oscuro: la malla es gris cálido casi
+apagado y solo se enciende (aditivo) cerca de los focos.
+
+Rendimiento (Chromium headless con SwiftShader, sin GPU, 5 s de rAF):
+antes 60 fps (1100 nodos, ~1100 aristas); después 60 fps a pixel ratio 1
+y ~38 fps a pixel ratio 2 con el canvas de 320 px. Si el frame promedio
+pasa de 24 ms el orbe degrada solo: primero sin niebla y pixel ratio 1,
+luego la mitad del polvo.
+
+### Segunda vuelta
+
+Malla triangulada de verdad (envolvente convexa de puntos irregulares,
+`buildSurfaceMesh`), orbe más grande (contenedor de `min(440px, 50vh)`, cámara más
+cerca), más bokeh y más grande, niebla central más densa y brasas más
+intensas con un resplandor casi blanco en el foco principal. Medición en
+el mismo entorno de software: ~47 fps a pixel ratio 1 (60 antes de la
+segunda vuelta), con la degradación automática si baja de ~41 fps.
