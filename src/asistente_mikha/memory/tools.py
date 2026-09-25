@@ -83,7 +83,10 @@ def memory(
         ]
         if missing:
             return {"status": "missing_argument", "action": action, "required": missing}
-        return {"status": "ok", "action": action, **save_note(title, content, tags)}
+        saved = save_note(title, content, tags)
+        # La ruta del archivo no le sirve al usuario: que el modelo no la vea
+        # evita que la repita en su confirmación.
+        return {"status": "ok", "action": action, "indexed": saved["indexed"]}
 
     if action == "search_notes":
         if not query:
@@ -158,7 +161,6 @@ def tasks(
             "action": action,
             "list": list_name,
             "added": added.tasks,
-            "path": str(added.path),
         }
 
     if action == "list":

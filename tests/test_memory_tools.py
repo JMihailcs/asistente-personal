@@ -55,7 +55,7 @@ def test_memory_router_dispatches_save_note(tmp_path, monkeypatch):
 
     assert result["status"] == "ok"
     assert result["indexed"] is True
-    assert Path(result["path"]).exists()
+    assert "path" not in result
 
 
 def test_memory_router_dispatches_search_notes(tmp_path, monkeypatch):

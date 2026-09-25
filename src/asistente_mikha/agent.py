@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import AsyncIterator
+from datetime import datetime
+from typing import AsyncIterator, Callable
 
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIChatModel
@@ -56,7 +57,8 @@ SYSTEM_PROMPT = (
     "tasks(action='add', ...) de inmediato.\n\n"
     "No tienes acceso a calendarios ni a internet. Usa las herramientas "
     "para responder con datos reales, nunca inventes cifras ni contenido "
-    "de notas o tareas. Si de verdad te piden algo fuera de tus "
+    "de notas o tareas. Al guardar algo, confirma en una frase corta, sin "
+    "mostrar rutas de archivos ni detalles internos. Si de verdad te piden algo fuera de tus "
     "capacidades, dilo con claridad — nunca inventes comandos o "
     "capacidades que no tienes.\n\n"
     "TODAS las herramientas responden igual: un objeto con un campo "
@@ -83,12 +85,41 @@ SYSTEM_PROMPT = (
 )
 
 
+_DIAS = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
+_MESES = (
+    "enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
+    "agosto", "septiembre", "octubre", "noviembre", "diciembre",
+)
+
+
+def instrucciones_de_fecha(ahora: datetime | None = None) -> str:
+    """Fecha y hora locales para el contexto del agente.
+
+    `ahora` es inyectable para las pruebas; por defecto usa el reloj de la
+    máquina en su zona horaria local.
+    """
+    ahora = ahora or datetime.now().astimezone()
+    zona = ahora.tzname() or ""
+    return (
+        f"Fecha actual: {_DIAS[ahora.weekday()]} {ahora.day} de "
+        f"{_MESES[ahora.month - 1]} de {ahora.year}, "
+        f"{ahora:%H:%M} ({zona}). Cuando el usuario use expresiones "
+        "relativas (mañana, la próxima semana, el siguiente mes, el "
+        "viernes), conviértelas a fechas o meses absolutos con esta fecha "
+        "al escribir notas o tareas; nunca guardes la expresión relativa "
+        "literal."
+    )
+
+
 def _build_model(model_name: str = DEFAULT_MODEL_NAME) -> OpenAIChatModel:
     provider = OpenAIProvider(base_url=get_ollama_base_url(), api_key="ollama")
     return OpenAIChatModel(model_name, provider=provider)
 
 
-def build_agent(model_name: str = DEFAULT_MODEL_NAME) -> Agent:
+def build_agent(
+    model_name: str = DEFAULT_MODEL_NAME,
+    reloj: Callable[[], datetime] | None = None,
+) -> Agent:
     # temperature=0 hace determinista la decisión de invocar una herramienta:
     # con muestreo por defecto el modelo a veces alucina resultados o inventa
     # texto en vez de llamar a la tool correspondiente.
@@ -102,6 +133,8 @@ def build_agent(model_name: str = DEFAULT_MODEL_NAME) -> Agent:
     agent = Agent(
         _build_model(model_name),
         system_prompt=SYSTEM_PROMPT,
+        # Se evalúa en cada turno, así la fecha nunca queda congelada.
+        instructions=lambda: instrucciones_de_fecha(reloj() if reloj else None),
         model_settings={"temperature": 0.0, "openai_reasoning_effort": "none"},
     )
     for registered in registry.all_tools().values():

@@ -69,8 +69,8 @@ export default function App() {
             refreshKey={refreshKey}
             onResolved={bump}
           />
-          <TasksPanel refreshKey={refreshKey} onProposed={bump} />
-          <NotesPanel refreshKey={refreshKey} onProposed={bump} />
+          <TasksPanel refreshKey={refreshKey} />
+          <NotesPanel refreshKey={refreshKey} />
         </aside>
       </div>
     </div>
