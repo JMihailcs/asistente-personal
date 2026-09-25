@@ -76,3 +76,17 @@ el navegador. Niebla volumétrica y bokeh son las dos cosas de esta lista
 que sí cuestan: la niebla pide un shader o sprites grandes con
 transparencia, y el bokeh pide partículas grandes con blending. Conviene
 medir de nuevo después de agregarlas, no asumir.
+
+## Estado de la implementación (rediseño OPTIMIND a oscuro)
+
+`frontend/src/orb/orb.js` ya implementa los seis puntos: malla de
+superficie de 4 vecinos sobre cáscara arrugada, tres focos ámbar
+móviles, niebla interior, polvo con tamaño/foco variado y bokeh, y tres
+anillos finos. Se mantuvo fondo oscuro: la malla es gris cálido casi
+apagado y solo se enciende (aditivo) cerca de los focos.
+
+Rendimiento (Chromium headless con SwiftShader, sin GPU, 5 s de rAF):
+antes 60 fps (1100 nodos, ~1100 aristas); después 60 fps a pixel ratio 1
+y ~38 fps a pixel ratio 2 con el canvas de 320 px. Si el frame promedio
+pasa de 24 ms el orbe degrada solo: primero sin niebla y pixel ratio 1,
+luego la mitad del polvo.
