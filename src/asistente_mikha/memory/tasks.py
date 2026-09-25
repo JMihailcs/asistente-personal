@@ -143,3 +143,62 @@ def list_task_lists(vault_path: Path) -> list[str]:
         _stored_list_name(file_path, file_path.stem)
         for file_path in sorted(tasks_dir.glob("*.md"))
     ]
+
+
+def _find_task(vault_path: Path, list_name: str, text: str):
+    """Ubica una tarea (pendiente o hecha) por texto dentro de una lista.
+
+    Devuelve (error, file_path, lines, index, exact_text): si error no es
+    None, es el resultado a devolver tal cual.
+    """
+    file_path = _list_path(vault_path, list_name)
+    if not file_path.exists():
+        return {"status": "list_not_found"}, None, None, None, None
+    lines = file_path.read_text(encoding="utf-8").splitlines()
+    matches: list[tuple[int, str]] = []
+    for i, line in enumerate(lines):
+        match = _TASK_LINE_RE.match(line.strip())
+        if match and text.lower() in match.group(2).lower():
+            matches.append((i, match.group(2)))
+    if not matches:
+        return {"status": "not_found"}, None, None, None, None
+    exact = [m for m in matches if m[1].lower() == text.lower()]
+    if len(exact) == 1:
+        matches = exact
+    if len(matches) > 1:
+        return (
+            {"status": "ambiguous", "matches": [m[1] for m in matches]},
+            None,
+            None,
+            None,
+            None,
+        )
+    return None, file_path, lines, matches[0][0], matches[0][1]
+
+
+def find_task(vault_path: Path, list_name: str, text: str) -> dict:
+    """Valida que `text` apunte a una sola tarea, sin modificar nada."""
+    error, _, _, _, exact_text = _find_task(vault_path, list_name, text)
+    return error or {"status": "ok", "task": exact_text}
+
+
+def edit_task(vault_path: Path, list_name: str, text: str, new_text: str) -> dict:
+    new_clean = " ".join(new_text.split())
+    if not new_clean:
+        return {"status": "missing_argument", "required": ["new_text"]}
+    error, file_path, lines, index, exact_text = _find_task(vault_path, list_name, text)
+    if error:
+        return error
+    checkbox = _TASK_LINE_RE.match(lines[index].strip()).group(1)
+    lines[index] = f"- [{checkbox}] {new_clean}"
+    file_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return {"status": "ok", "task": exact_text, "new_text": new_clean}
+
+
+def delete_task(vault_path: Path, list_name: str, text: str) -> dict:
+    error, file_path, lines, index, exact_text = _find_task(vault_path, list_name, text)
+    if error:
+        return error
+    del lines[index]
+    file_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return {"status": "ok", "task": exact_text}
