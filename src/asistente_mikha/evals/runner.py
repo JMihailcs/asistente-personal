@@ -17,6 +17,7 @@ from asistente_mikha.evals.checks import (
     Verdict,
     argumentos_correctos,
     efecto_correcto,
+    sin_efecto,
     eligio_herramienta,
     fundamentada,
     respuesta_ok,
@@ -38,6 +39,13 @@ def preparar_vault(vault: Path, prepara: dict[str, Any]) -> None:
             add_task(vault, nombre, texto)
 
 
+def _efecto(vault: Path, espera) -> Verdict:
+    encontrado = efecto_correcto(vault, espera.archivos)
+    if not encontrado.ok:
+        return encontrado
+    return sin_efecto(vault, espera.sin_archivos)
+
+
 def veredictos_de(caso: EvalCase, resultado: TurnOutcome, vault: Path) -> dict[str, dict]:
     espera = caso.espera
     crudos = {
@@ -45,7 +53,7 @@ def veredictos_de(caso: EvalCase, resultado: TurnOutcome, vault: Path) -> dict[s
         "argumentos": argumentos_correctos(
             resultado.llamadas, espera.herramienta, espera.argumentos
         ),
-        "efecto": efecto_correcto(vault, espera.archivos),
+        "efecto": _efecto(vault, espera),
         "respuesta": respuesta_ok(
             resultado.respuesta, espera.respuesta_contiene, espera.respuesta_pregunta
         ),

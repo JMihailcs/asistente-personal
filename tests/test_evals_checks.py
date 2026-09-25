@@ -185,3 +185,18 @@ def test_busca_en_valores_anidados_del_resultado():
     )]
 
     assert fundamentada("El proceso 2721251 usa 1843.5 MB.", llamadas).ok is True
+
+
+def test_sin_efecto_falla_si_aparece_un_archivo_prohibido(tmp_path):
+    from asistente_mikha.evals.checks import sin_efecto
+
+    assert sin_efecto(tmp_path, ["Tareas/*.md"]).ok
+    (tmp_path / "Tareas").mkdir()
+    (tmp_path / "Tareas" / "compras.md").write_text("# Compras\n")
+    assert not sin_efecto(tmp_path, ["Tareas/*.md"]).ok
+
+
+def test_cualquier_herramienta_no_exige_ni_prohibe():
+    from asistente_mikha.evals.checks import eligio_herramienta
+
+    assert eligio_herramienta([], "cualquiera").ok

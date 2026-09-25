@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from asistente_mikha.memory import tools as memory_tools
+from asistente_mikha.memory.turn_context import reset_user_message, set_user_message
 
 
 def fake_embed(text: str) -> list[float]:
@@ -160,3 +161,52 @@ def test_tasks_router_complete_without_text_does_not_complete_any_task(tmp_path,
         {"text": "lavar los platos", "done": False},
         {"text": "sacar la basura", "done": False},
     ]
+
+
+def test_tasks_add_to_unnamed_new_list_is_refused(tmp_path, monkeypatch):
+    monkeypatch.setenv("MIKHA_VAULT_PATH", str(tmp_path))
+    memory_tools.tasks(action="add", list_name="Casa", text="algo")
+    token = set_user_message("Agrega la tarea comprar leche.")
+    try:
+        result = memory_tools.tasks(action="add", list_name="Compras", text="comprar leche")
+    finally:
+        reset_user_message(token)
+
+    assert result["status"] == "list_not_specified"
+    assert result["existing_lists"] == ["Casa"]
+    assert not (tmp_path / "Tareas" / "compras.md").exists()
+
+
+def test_tasks_add_creates_new_list_when_user_named_it(tmp_path, monkeypatch):
+    monkeypatch.setenv("MIKHA_VAULT_PATH", str(tmp_path))
+    token = set_user_message("Agrega 'llamar al plomero' a mi lista de Casa Nueva.")
+    try:
+        result = memory_tools.tasks(action="add", list_name="Casa Nueva", text="llamar al plomero")
+    finally:
+        reset_user_message(token)
+
+    assert result["status"] == "ok"
+
+
+def test_tasks_add_to_existing_list_needs_no_mention(tmp_path, monkeypatch):
+    monkeypatch.setenv("MIKHA_VAULT_PATH", str(tmp_path))
+    memory_tools.tasks(action="add", list_name="Casa", text="algo")
+    token = set_user_message("Agrega la tarea comprar leche.")
+    try:
+        result = memory_tools.tasks(action="add", list_name="casa", text="comprar leche")
+    finally:
+        reset_user_message(token)
+
+    assert result["status"] == "ok"
+
+
+def test_tasks_add_list_name_must_match_whole_words(tmp_path, monkeypatch):
+    monkeypatch.setenv("MIKHA_VAULT_PATH", str(tmp_path))
+    token = set_user_message("Agrega comprar un regalo para el casamiento.")
+    try:
+        result = memory_tools.tasks(action="add", list_name="Casa", text="comprar un regalo")
+    finally:
+        reset_user_message(token)
+
+    assert result["status"] == "list_not_specified"
+    assert result["existing_lists"] == []

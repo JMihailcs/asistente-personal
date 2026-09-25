@@ -1,0 +1,6 @@
+id: tarea-sin-lista-no-crea-lista
+mensaje: "Agrega la tarea comprar leche."
+espera:
+  herramienta: cualquiera
+  sin_archivos: ["Tareas/*.md"]
+  respuesta_pregunta: true

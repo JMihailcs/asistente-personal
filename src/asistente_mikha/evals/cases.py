@@ -7,12 +7,15 @@ from typing import Any
 import yaml
 
 SIN_HERRAMIENTA = "ninguna"
+# El caso no exige ni prohibe llamar herramientas: solo mide el efecto.
+CUALQUIER_HERRAMIENTA = "cualquiera"
 
 _CLAVES_CASO = {"id", "mensaje", "prepara", "espera"}
 _CLAVES_ESPERA = {
     "herramienta",
     "argumentos",
     "archivos",
+    "sin_archivos",
     "respuesta_contiene",
     "respuesta_pregunta",
     "fundamentada",
@@ -35,6 +38,7 @@ class Expectation:
     herramienta: str
     argumentos: dict[str, Any] = field(default_factory=dict)
     archivos: list[ExpectedFile] = field(default_factory=list)
+    sin_archivos: list[str] = field(default_factory=list)
     respuesta_contiene: list[str] = field(default_factory=list)
     respuesta_pregunta: bool = False
     fundamentada: bool = False
@@ -99,6 +103,14 @@ def load_case(data: dict, origen: str) -> EvalCase:
                 )
             )
 
+    sin_archivos_raw = espera_raw.get("sin_archivos")
+    if sin_archivos_raw is not None:
+        if not isinstance(sin_archivos_raw, list):
+            raise CaseError(f"{origen}: 'sin_archivos' tiene que ser una lista")
+        sin_archivos = list(sin_archivos_raw)
+    else:
+        sin_archivos = []
+
     respuesta_contiene_raw = espera_raw.get("respuesta_contiene")
     if respuesta_contiene_raw is not None:
         if not isinstance(respuesta_contiene_raw, list):
@@ -111,6 +123,7 @@ def load_case(data: dict, origen: str) -> EvalCase:
         herramienta=herramienta,
         argumentos=argumentos,
         archivos=archivos,
+        sin_archivos=sin_archivos,
         respuesta_contiene=respuesta_contiene,
         respuesta_pregunta=bool(espera_raw.get("respuesta_pregunta", False)),
         fundamentada=bool(espera_raw.get("fundamentada", False)),

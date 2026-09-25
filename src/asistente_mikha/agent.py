@@ -17,6 +17,7 @@ from asistente_mikha.tools import registry
 # construir cualquier agente.
 from asistente_mikha.tools import actions, diagnostics  # noqa: F401
 from asistente_mikha.memory import tools as memory_tools  # noqa: F401
+from asistente_mikha.memory.turn_context import reset_user_message, set_user_message
 
 DEFAULT_MODEL_NAME = "default"
 
@@ -65,7 +66,9 @@ SYSTEM_PROMPT = (
     "de inventar un resultado: 'missing_argument' te dice en 'required' qué "
     "argumento falta (pregúntaselo al usuario), 'list_not_found' que esa "
     "lista no existe, 'not_found' que no hay ninguna tarea así, "
-    "'already_done' que esa tarea ya estaba hecha, 'ambiguous' que varias "
+    "'already_done' que esa tarea ya estaba hecha, 'list_not_specified' que el usuario no dijo esa lista: NO la "
+    "uses, pregúntale a cuál de las de 'existing_lists' (o si quiere una "
+    "nueva) va la tarea, 'ambiguous' que varias "
     "coinciden y en 'matches' están las opciones (pedile al usuario que "
     "elija), 'invalid_target' que ese target no es válido y en 'allowed' "
     "están los que sí, y 'unavailable' que ese dato no se puede leer en "
@@ -138,7 +141,11 @@ async def run_turn(session_id: str, message: str) -> AgentTurnResult:
     with tracer.start_as_current_span("agent.turn") as span:
         span.set_attribute("gen_ai.request.model", DEFAULT_MODEL_NAME)
         span.set_attribute("mikha.session_id", session_id)
-        result = await session.agent.run(message, message_history=session.history)
+        token = set_user_message(message)
+        try:
+            result = await session.agent.run(message, message_history=session.history)
+        finally:
+            reset_user_message(token)
         session.history = result.all_messages()
         span.set_attribute("gen_ai.response.text_length", len(result.output))
     return AgentTurnResult(reply=result.output, pending_action_ids=collect_turn_actions())
@@ -153,13 +160,17 @@ async def run_turn_stream(session_id: str, message: str) -> AsyncIterator[str | 
         span.set_attribute("gen_ai.request.model", DEFAULT_MODEL_NAME)
         span.set_attribute("mikha.session_id", session_id)
         parts: list[str] = []
-        async with session.agent.run_stream(
-            message, message_history=session.history
-        ) as result:
-            async for delta in result.stream_text(delta=True):
-                parts.append(delta)
-                yield delta
-            session.history = result.all_messages()
+        token = set_user_message(message)
+        try:
+            async with session.agent.run_stream(
+                message, message_history=session.history
+            ) as result:
+                async for delta in result.stream_text(delta=True):
+                    parts.append(delta)
+                    yield delta
+                session.history = result.all_messages()
+        finally:
+            reset_user_message(token)
         reply = "".join(parts)
         span.set_attribute("gen_ai.response.text_length", len(reply))
     yield AgentTurnResult(reply=reply, pending_action_ids=collect_turn_actions())

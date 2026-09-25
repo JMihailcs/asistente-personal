@@ -12,9 +12,12 @@ from asistente_mikha.memory.tasks import (
     delete_task,
     edit_task,
     find_task,
+    list_exists,
     list_task_lists,
     list_tasks,
+    user_named_list,
 )
+from asistente_mikha.memory.turn_context import get_user_message
 from asistente_mikha.memory.vault import (
     delete_note,
     find_notes,
@@ -132,6 +135,21 @@ def tasks(
     assert list_name is not None  # garantizado por la validacion de arriba
 
     if action == "add":
+        # Guardrail: el modelo local inventa una lista cuando el usuario no
+        # dijo cual. Una lista nueva solo se crea si el usuario la nombro en
+        # este turno; si no, se le pide que elija, mostrando las existentes.
+        user_message = get_user_message()
+        if (
+            user_message is not None
+            and not list_exists(vault_path, list_name)
+            and not user_named_list(user_message, list_name)
+        ):
+            return {
+                "status": "list_not_specified",
+                "action": action,
+                "list": list_name,
+                "existing_lists": list_task_lists(vault_path),
+            }
         added = add_task(vault_path, list_name, text or "")
         if not added.tasks:
             return {"status": "missing_argument", "action": action, "required": ["text"]}

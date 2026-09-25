@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from asistente_mikha.evals.cases import SIN_HERRAMIENTA, ExpectedFile
+from asistente_mikha.evals.cases import CUALQUIER_HERRAMIENTA, SIN_HERRAMIENTA, ExpectedFile
 
 
 @dataclass(frozen=True)
@@ -69,6 +69,8 @@ def extraer_llamadas(messages: list) -> list[ToolCall]:
 
 def eligio_herramienta(llamadas: list[ToolCall], esperada: str) -> Verdict:
     nombres = [ll.name for ll in llamadas]
+    if esperada == CUALQUIER_HERRAMIENTA:
+        return Verdict(True)
     if esperada == SIN_HERRAMIENTA:
         if nombres:
             return Verdict(False, f"no correspondia ninguna y llamo a {', '.join(nombres)}")
@@ -113,6 +115,14 @@ def efecto_correcto(vault: Path, esperados: list[ExpectedFile]) -> Verdict:
         texto = "\n".join(normalizar(f.read_text(encoding="utf-8")) for f in encontrados)
         if normalizar(esperado.contiene) not in texto:
             return Verdict(False, f"'{esperado.contiene}' no aparece en '{esperado.patron}'")
+    return Verdict(True)
+
+
+def sin_efecto(vault: Path, prohibidos: list[str]) -> Verdict:
+    for patron in prohibidos:
+        encontrados = sorted(vault.glob(patron))
+        if encontrados:
+            return Verdict(False, f"aparecio '{encontrados[0].name}' y no debia crearse nada en '{patron}'")
     return Verdict(True)
 
 
