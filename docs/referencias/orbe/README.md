@@ -12,15 +12,16 @@ collectui.com/designs/landing-page-ui-design-inspiration/ffec0157-16c4-434c-b06b
 
 ## Por qué importa esta corrección
 
-El orbe de la Fase 4 se construyó mirando las dos imágenes recortadas.
+El orbe de la Fase 4 (ya reemplazado, ver "Estado de la implementación") se construyó mirando las dos imágenes recortadas.
 Lo que quedó afuera del recorte es justamente lo que le da el carácter a
 la referencia: la niebla interior, la luz localizada y el desenfoque de
 las partículas cercanas. El resultado actual es coherente consigo mismo,
 pero es otra cosa.
 
-## Qué tiene la referencia que el orbe actual no
+## Qué tiene la referencia que el orbe de la Fase 4 no tenía
 
-Ordenado por cuánto cambia la lectura de la imagen:
+Ordenado por cuánto cambia la lectura de la imagen. Los "Hoy" describen
+el orbe de la Fase 4, no el actual:
 
 1. **La luz es localizada, no uniforme.** En la referencia hay dos o tres
    focos calientes (ámbar hacia blanco) concentrados en una región, como
@@ -49,7 +50,7 @@ Ordenado por cuánto cambia la lectura de la imagen:
    fondo claro; el ámbar aparece solo donde hay luz. Hoy todo es ámbar
    sobre negro.
 
-## La tensión que hay que resolver antes de implementar
+## La tensión que había que resolver antes de implementar (resuelta: se mantuvo oscuro)
 
 La referencia es **fondo claro**. En la Fase 4 se decidió explícitamente
 adaptarla a oscuro, y el resto del dashboard se construyó sobre esa
@@ -71,7 +72,7 @@ implementa, vale hacer las dos y mirarlas.
 
 ## Costo de rendimiento a tener en cuenta
 
-El orbe actual corre a 60 fps con 1100 nodos y 1099 aristas, medido en
+El orbe de la Fase 4 corría a 60 fps con 1100 nodos y 1099 aristas, medido en
 el navegador. Niebla volumétrica y bokeh son las dos cosas de esta lista
 que sí cuestan: la niebla pide un shader o sprites grandes con
 transparencia, y el bokeh pide partículas grandes con blending. Conviene
