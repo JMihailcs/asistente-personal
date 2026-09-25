@@ -16,7 +16,7 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-      - run: uv sync --extra dev --frozen
+      - run: uv sync --extra dev
       # Sin Ollama: se excluyen las pruebas marcadas como integration.
       - run: uv run pytest -m "not integration"
 
