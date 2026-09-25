@@ -122,6 +122,10 @@ pytest                        # todo
 cd frontend && npm test       # tests del dashboard (vitest)
 ```
 
+GitHub Actions (`.github/workflows/ci.yml`) corre en cada PR y en cada push
+a `main` los tests rápidos de Python, el lint y los tests del frontend. Las
+pruebas `integration` no corren en CI porque requieren Ollama.
+
 ## Interfaz web
 
 El dashboard se sirve desde el mismo backend en `http://localhost:8000`:
