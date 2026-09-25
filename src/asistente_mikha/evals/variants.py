@@ -7,7 +7,7 @@ from typing import Any, Callable
 
 from pydantic_ai import Agent
 
-from asistente_mikha.agent import SYSTEM_PROMPT, _build_model
+from asistente_mikha.agent import SYSTEM_PROMPT, _build_model, instrucciones_de_fecha
 from asistente_mikha.evals.checks import ToolCall, extraer_llamadas
 from asistente_mikha.memory.turn_context import reset_user_message, set_user_message
 from asistente_mikha.tools import registry
@@ -83,7 +83,12 @@ def construir_agente(modelo: str, variante: str) -> Agent:
         # vivo: 796 tokens y 29.6s pasan a 4 tokens y 0.3s, misma respuesta.
         ajustes["openai_reasoning_effort"] = "none"
 
-    agente = Agent(_build_model(modelo), system_prompt=prompt, model_settings=ajustes)
+    agente = Agent(
+        _build_model(modelo),
+        system_prompt=prompt,
+        instructions=lambda: instrucciones_de_fecha(),
+        model_settings=ajustes,
+    )
     for registrada in registry.all_tools().values():
         funcion = con_motivo(registrada.func) if variante == "cot_arg" else registrada.func
         agente.tool_plain(funcion)

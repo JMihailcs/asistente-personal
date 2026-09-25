@@ -76,15 +76,3 @@ def test_missing_arguments_and_invalid_action(vault):
     assert memory_tools.modify_data(action="delete_task", list_name="Casa")["status"] == "missing_argument"
     assert memory_tools.propose_change("borrar_todo")["status"] == "invalid_action"
 
-
-def test_ui_endpoint_only_proposes(vault):
-    write_note(vault, "Idea", "contenido")
-    with TestClient(app) as client:
-        note_id = client.get("/notes/recent").json()["notes"][0]["id"]
-        resp = client.post("/changes", json={"action": "delete_note", "note": note_id})
-        assert resp.status_code == 200
-        assert len(list_vault_notes(vault)) == 1
-        client.post(f"/confirm/{resp.json()['action_id']}")
-        assert list_vault_notes(vault) == []
-        missing = client.post("/changes", json={"action": "delete_note", "note": "nope"})
-        assert missing.status_code == 404

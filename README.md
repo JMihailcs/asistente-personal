@@ -133,9 +133,9 @@ pruebas `integration` no corren en CI porque requieren Ollama.
 El dashboard se sirve desde el mismo backend en `http://localhost:8000`:
 el chat con streaming, el orbe que vibra mientras el asistente responde,
 y paneles con el estado de la maquina, tus tareas, tus notas recientes y
-las acciones esperando confirmacion. Los paneles de tareas y notas
-tienen botones "editar" y "eliminar": solo proponen el cambio, que queda
-en "por confirmar" hasta que lo apruebes.
+las acciones esperando confirmacion. Los paneles son solo de
+lectura: para editar o eliminar una nota o tarea, pídeselo al asistente en
+el chat; el cambio queda en "por confirmar" hasta que lo apruebes.
 
 Para desarrollar el frontend con recarga en vivo, con el backend
 corriendo aparte:

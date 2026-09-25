@@ -68,12 +68,3 @@ class PendingActionResponse(BaseModel):
 class PendingActionsResponse(BaseModel):
     actions: list[PendingActionResponse]
 
-
-class ProposeChangeRequest(BaseModel):
-    action: str
-    note: str | None = None
-    new_title: str | None = None
-    new_content: str | None = None
-    list_name: str | None = None
-    text: str | None = None
-    new_text: str | None = None
