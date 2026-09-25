@@ -99,10 +99,12 @@ tareas tengo en mi lista de...", "Marca como hecha la tarea..."). Las
 listas se organizan por tema o meta (ej. "Casa", "Idea de negocio") y
 se guardan como checkboxes de Markdown en `<vault>/Tareas/<lista>.md`.
 Editar o eliminar una tarea también requiere confirmación explícita.
-Decile siempre a qué lista va la tarea. Si no lo decís, el modelo
-actual inventa una lista en vez de preguntar: es el único caso que se
-pierde al apagarle el razonamiento para que responda rápido (ver la
-sección de evals). Hay un guardrail pendiente para atraparlo.
+Si no decís a qué lista va la tarea, Mikha no crea una en silencio: la
+herramienta rechaza agregar a una lista que no existe y que no nombraste
+en el mensaje, y Mikha te pregunta cuál usar mostrándote las existentes.
+Es una comprobación en código (`tasks` compara la lista con tu mensaje),
+no solo una instrucción del prompt, porque el modelo local sin
+razonamiento la ignoraba (ver la sección de evals).
 
 ## Configuración por variables de entorno
 

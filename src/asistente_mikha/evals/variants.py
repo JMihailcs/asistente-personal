@@ -9,6 +9,7 @@ from pydantic_ai import Agent
 
 from asistente_mikha.agent import SYSTEM_PROMPT, _build_model
 from asistente_mikha.evals.checks import ToolCall, extraer_llamadas
+from asistente_mikha.memory.turn_context import reset_user_message, set_user_message
 from asistente_mikha.tools import registry
 
 VARIANTES = ("baseline", "cot_prompt", "cot_arg", "two_step", "no_think")
@@ -105,7 +106,11 @@ async def ejecutar_turno(modelo: str, variante: str, mensaje: str) -> TurnOutcom
         plan = await _construir_planificador(modelo).run(mensaje)
         entrada = f"Plan: {plan.output}\n\nPedido del usuario: {mensaje}"
 
-    resultado = await construir_agente(modelo, variante).run(entrada)
+    token = set_user_message(mensaje)
+    try:
+        resultado = await construir_agente(modelo, variante).run(entrada)
+    finally:
+        reset_user_message(token)
     return TurnOutcome(
         respuesta=resultado.output,
         llamadas=extraer_llamadas(resultado.all_messages()),

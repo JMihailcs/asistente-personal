@@ -1,9 +1,9 @@
 from pathlib import Path
 
-from asistente_mikha.evals.cases import SIN_HERRAMIENTA, load_cases
+from asistente_mikha.evals.cases import CUALQUIER_HERRAMIENTA, SIN_HERRAMIENTA, load_cases
 
 CASOS = Path("evals/casos")
-HERRAMIENTAS = {"diagnostics", "system_action", "memory", "tasks", SIN_HERRAMIENTA}
+HERRAMIENTAS = {"diagnostics", "system_action", "memory", "tasks", SIN_HERRAMIENTA, CUALQUIER_HERRAMIENTA}
 
 
 def test_los_casos_reales_cargan():
@@ -30,5 +30,5 @@ def test_cada_caso_que_espera_herramienta_declara_argumentos():
     # Sin argumentos esperados, la dimension 'argumentos' es un aprobado
     # automatico y el numero no significa nada.
     for caso in load_cases(CASOS):
-        if caso.espera.herramienta != SIN_HERRAMIENTA:
+        if caso.espera.herramienta not in (SIN_HERRAMIENTA, CUALQUIER_HERRAMIENTA):
             assert caso.espera.argumentos, caso.id

@@ -202,3 +202,17 @@ def delete_task(vault_path: Path, list_name: str, text: str) -> dict:
     del lines[index]
     file_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return {"status": "ok", "task": exact_text}
+
+
+def list_exists(vault_path: Path, list_name: str) -> bool:
+    return _list_path(vault_path, list_name).exists()
+
+
+def user_named_list(user_message: str, list_name: str) -> bool:
+    """Dice si `list_name` aparece en el mensaje como palabra(s) completa(s).
+
+    Se compara por slug (sin mayusculas ni puntuacion), igual que se ubican
+    los archivos, y con guiones alrededor para que "casa" no coincida dentro
+    de "casamiento".
+    """
+    return f"-{slugify(list_name)}-" in f"-{slugify(user_message)}-"
