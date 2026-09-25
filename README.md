@@ -88,6 +88,9 @@ Pídele a Mikha que guarde o busque notas ("Guarda una nota titulada...",
 Markdown en `~/Obsidian/Mikha` (o la ruta en `MIKHA_VAULT_PATH`), listos
 para abrir directamente en la app de Obsidian.
 
+También puedes pedirle que edite o elimine una nota. Nunca lo hace de
+inmediato: deja el cambio pendiente hasta que lo confirmes.
+
 ## Tareas
 
 Pídele a Mikha que agregue, liste o complete tareas, o que te diga qué
@@ -95,6 +98,7 @@ listas de tareas tenés ("Agrega la tarea... a mi lista de...", "Qué
 tareas tengo en mi lista de...", "Marca como hecha la tarea..."). Las
 listas se organizan por tema o meta (ej. "Casa", "Idea de negocio") y
 se guardan como checkboxes de Markdown en `<vault>/Tareas/<lista>.md`.
+Editar o eliminar una tarea también requiere confirmación explícita.
 Decile siempre a qué lista va la tarea. Si no lo decís, el modelo
 actual inventa una lista en vez de preguntar: es el único caso que se
 pierde al apagarle el razonamiento para que responda rápido (ver la
@@ -123,7 +127,9 @@ cd frontend && npm test       # tests del dashboard (vitest)
 El dashboard se sirve desde el mismo backend en `http://localhost:8000`:
 el chat con streaming, el orbe que vibra mientras el asistente responde,
 y paneles con el estado de la maquina, tus tareas, tus notas recientes y
-las acciones esperando confirmacion.
+las acciones esperando confirmacion. Los paneles de tareas y notas
+tienen botones "editar" y "eliminar": solo proponen el cambio, que queda
+en "por confirmar" hasta que lo apruebes.
 
 Para desarrollar el frontend con recarga en vivo, con el backend
 corriendo aparte:
