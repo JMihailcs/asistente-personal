@@ -81,7 +81,7 @@ medir de nuevo después de agregarlas, no asumir.
 ## Estado de la implementación (rediseño OPTIMIND a oscuro)
 
 `frontend/src/orb/orb.js` ya implementa los seis puntos: malla de
-superficie de 4 vecinos sobre cáscara arrugada, tres focos ámbar
+superficie triangulada sobre cáscara arrugada, tres focos ámbar
 móviles, niebla interior, polvo con tamaño/foco variado y bokeh, y tres
 anillos finos. Se mantuvo fondo oscuro: la malla es gris cálido casi
 apagado y solo se enciende (aditivo) cerca de los focos.
