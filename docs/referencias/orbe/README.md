@@ -91,3 +91,12 @@ antes 60 fps (1100 nodos, ~1100 aristas); después 60 fps a pixel ratio 1
 y ~38 fps a pixel ratio 2 con el canvas de 320 px. Si el frame promedio
 pasa de 24 ms el orbe degrada solo: primero sin niebla y pixel ratio 1,
 luego la mitad del polvo.
+
+### Segunda vuelta
+
+Malla triangulada de verdad (envolvente convexa de puntos irregulares,
+`buildSurfaceMesh`), orbe más grande (contenedor de 440 px, cámara más
+cerca), más bokeh y más grande, niebla central más densa y brasas más
+intensas con un resplandor casi blanco en el foco principal. Medición en
+el mismo entorno de software: ~47 fps a pixel ratio 1 (60 antes de la
+segunda vuelta), con la degradación automática si baja de ~41 fps.

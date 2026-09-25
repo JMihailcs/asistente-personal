@@ -17,16 +17,10 @@ vi.mock('three', async () => {
 });
 
 describe('buildSurfaceMesh', () => {
-  // Cuatro nodos de un tetraedro y uno lejano: la malla tiene que unir
-  // vecinos, no todos con todos.
-  const cloud = Float32Array.from([
-    0, 0, 0,
-    0.1, 0, 0,
-    0, 0.1, 0,
-    0, 0, 0.1,
-    5, 5, 5,
-  ]);
-  const COUNT = 5;
+  // Octaedro: 6 direcciones sobre la esfera. Su triangulacion tiene 8 caras
+  // y 12 aristas (Euler: V - E + F = 2).
+  const octahedron = Float32Array.from([1, 0, 0, -1, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, 1, 0, 0, -1]);
+  const COUNT = 6;
 
   function pairs(edges) {
     const out = [];
@@ -34,28 +28,29 @@ describe('buildSurfaceMesh', () => {
     return out;
   }
 
-  it('no repite aristas', () => {
-    const keys = pairs(buildSurfaceMesh(cloud, COUNT, 2)).map(([a, b]) => `${Math.min(a, b)}-${Math.max(a, b)}`);
+  it('triangula la superficie: 3V - 6 aristas', () => {
+    expect(buildSurfaceMesh(octahedron, COUNT).length / 2).toBe(12);
+  });
+
+  it('no repite aristas ni conecta un nodo consigo mismo', () => {
+    const list = pairs(buildSurfaceMesh(octahedron, COUNT));
+    const keys = list.map(([a, b]) => `${Math.min(a, b)}-${Math.max(a, b)}`);
 
     expect(new Set(keys).size).toBe(keys.length);
+    for (const [a, b] of list) expect(a).not.toBe(b);
   });
 
-  it('nunca conecta un nodo consigo mismo', () => {
-    for (const [a, b] of pairs(buildSurfaceMesh(cloud, COUNT, 2))) {
-      expect(a).not.toBe(b);
-    }
-  });
+  it('nunca une puntos opuestos de la esfera', () => {
+    // Los antipodas (0-1, 2-3, 4-5) no comparten cara.
+    const keys = pairs(buildSurfaceMesh(octahedron, COUNT)).map(([a, b]) => `${Math.min(a, b)}-${Math.max(a, b)}`);
 
-  it('une cada nodo con sus vecinos mas cercanos', () => {
-    const edges = pairs(buildSurfaceMesh(cloud, COUNT, 1));
-
-    // El nodo lejano se engancha con el que tiene mas a mano, no queda suelto.
-    expect(edges.some(([a, b]) => a === 4 || b === 4)).toBe(true);
-    expect(edges.length).toBeLessThanOrEqual(COUNT);
+    expect(keys).not.toContain('0-1');
+    expect(keys).not.toContain('2-3');
+    expect(keys).not.toContain('4-5');
   });
 
   it('no deja indices fuera de la nube', () => {
-    for (const index of buildSurfaceMesh(cloud, COUNT, 3)) {
+    for (const index of buildSurfaceMesh(octahedron, COUNT)) {
       expect(index).toBeGreaterThanOrEqual(0);
       expect(index).toBeLessThan(COUNT);
     }

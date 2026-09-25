@@ -1,14 +1,14 @@
 import * as THREE from 'three';
+import { ConvexHull } from 'three/examples/jsm/math/ConvexHull.js';
 
 // Una caparazon hueca de malla irregular, con luz ambar localizada como
 // brasas, niebla adentro, particulas de distinto tamano y foco, y anillos
 // finisimos alrededor: la referencia OPTIMIND (docs/referencias/orbe) pasada
 // a fondo oscuro. La malla es casi apagada y solo brilla donde hay luz.
 const SHELL_COUNT = 720;
-const NEIGHBORS = 4;
-const SHELL_RADIUS = 0.84;
-const DUST_COUNT = 300;
-const FOG_COUNT = 30;
+const SHELL_RADIUS = 0.9;
+const DUST_COUNT = 380;
+const FOG_COUNT = 44;
 const HOTSPOTS = 3;
 
 // Pensar gira rapido y las brasas corren por la superficie; contestar gira
@@ -44,49 +44,52 @@ function fibonacciDirection(i, count) {
 }
 
 /**
- * Teje una malla de superficie: une cada nodo con sus `k` vecinos mas
- * cercanos, sin repetir aristas. Sobre la cascara eso da triangulos
- * irregulares, y como los nodos estan a radios distintos la malla se ve
- * arrugada. Se calcula una sola vez sobre las posiciones de reposo; despues
- * solo hay que mover los extremos.
+ * Teje la malla de superficie como una triangulacion real: la envolvente
+ * convexa de las direcciones sobre la esfera es su triangulacion de Delaunay,
+ * asi que cada cara es un triangulo y ninguna arista cruza a otra. Con
+ * direcciones irregulares (ver `jitteredDirection`) los triangulos salen de
+ * tamanos y formas distintos, como una geodesica arrugada, en vez de una
+ * cuadricula. Devuelve los pares de indices de cada arista, sin repetir.
+ * Se calcula una sola vez; despues solo hay que mover los extremos.
  */
-export function buildSurfaceMesh(positions, count, k = NEIGHBORS) {
+export function buildSurfaceMesh(directions, count) {
+  const points = Array.from({ length: count }, (_, i) => {
+    const point = new THREE.Vector3(directions[i * 3], directions[i * 3 + 1], directions[i * 3 + 2]);
+    point.index = i;
+    return point;
+  });
+  const hull = new ConvexHull().setFromPoints(points);
+
   const seen = new Set();
   const edges = [];
-  const nearest = new Float32Array(k);
-  const nearestIndex = new Int32Array(k);
-
-  for (let a = 0; a < count; a += 1) {
-    nearest.fill(Infinity);
-    nearestIndex.fill(-1);
-    for (let b = 0; b < count; b += 1) {
-      if (a === b) continue;
-      const dx = positions[a * 3] - positions[b * 3];
-      const dy = positions[a * 3 + 1] - positions[b * 3 + 1];
-      const dz = positions[a * 3 + 2] - positions[b * 3 + 2];
-      const distance = dx * dx + dy * dy + dz * dz;
-      if (distance >= nearest[k - 1]) continue;
-      // Insercion ordenada en la lista corta de los k mas cercanos.
-      let slot = k - 1;
-      while (slot > 0 && nearest[slot - 1] > distance) {
-        nearest[slot] = nearest[slot - 1];
-        nearestIndex[slot] = nearestIndex[slot - 1];
-        slot -= 1;
-      }
-      nearest[slot] = distance;
-      nearestIndex[slot] = b;
-    }
-    for (let n = 0; n < k; n += 1) {
-      const b = nearestIndex[n];
-      if (b < 0) continue;
+  for (const face of hull.faces) {
+    let edge = face.edge;
+    do {
+      const a = edge.prev.vertex.point.index;
+      const b = edge.vertex.point.index;
       const key = a < b ? a * count + b : b * count + a;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      edges.push(a, b);
-    }
+      if (!seen.has(key)) {
+        seen.add(key);
+        edges.push(a, b);
+      }
+      edge = edge.next;
+    } while (edge !== face.edge);
   }
 
   return Uint16Array.from(edges);
+}
+
+/** Direccion sobre la esfera con un empujon al azar: puntos irregulares. */
+function jitteredDirection(i, count, jitter = 0.75) {
+  const [x, y, z] = fibonacciDirection(i, count);
+  // El paso medio entre vecinos es ~ sqrt(4*pi/count): el empujon es una
+  // fraccion de eso, para que no se amontonen ni queden huecos enormes.
+  const step = Math.sqrt((4 * Math.PI) / count) * jitter;
+  const jx = x + (noiseAt(i * 3 + 11000) - 0.5) * 2 * step;
+  const jy = y + (noiseAt(i * 3 + 12000) - 0.5) * 2 * step;
+  const jz = z + (noiseAt(i * 3 + 13000) - 0.5) * 2 * step;
+  const length = Math.hypot(jx, jy, jz);
+  return [jx / length, jy / length, jz / length];
 }
 
 // Sprite blando: la niebla no es mas que manchas grandes y translucidas.
@@ -161,7 +164,7 @@ function createPointCloud(count, material) {
 // De brasa a blanco caliente segun cuanta luz recibe el punto (0..1+).
 function emberColor(heat, out, offset, gain = 1) {
   const h = Math.min(1.4, heat);
-  const white = Math.max(0, h - 0.65) / 0.75;
+  const white = Math.max(0, h - 0.5) / 0.6;
   out[offset] = Math.min(1, 0.95 * h + 0.1) * gain;
   out[offset + 1] = Math.min(1, (0.42 + 0.5 * white) * h) * gain;
   out[offset + 2] = Math.min(1, (0.12 + 0.72 * white) * h) * gain;
@@ -174,7 +177,7 @@ export function createOrb(canvas) {
 
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
-  camera.position.z = 3.2;
+  camera.position.z = 2.85;
 
   // Cascara: direccion pareja mas un relieve suave (dos ondas cruzadas) y un
   // poco de ruido, para que la malla se vea arrugada y no una esfera lisa.
@@ -184,10 +187,10 @@ export function createOrb(canvas) {
   const driftPhase = new Float32Array(SHELL_COUNT * 3);
   const driftRate = new Float32Array(SHELL_COUNT * 3);
   for (let i = 0; i < SHELL_COUNT; i += 1) {
-    const [dx, dy, dz] = fibonacciDirection(i, SHELL_COUNT);
+    const [dx, dy, dz] = jitteredDirection(i, SHELL_COUNT);
     const relief =
-      0.09 * Math.sin(dx * 4.1 + dy * 2.3) * Math.cos(dz * 3.7 - dy * 1.9) +
-      (noiseAt(i + 7000) - 0.5) * 0.09;
+      0.13 * Math.sin(dx * 4.1 + dy * 2.3) * Math.cos(dz * 3.7 - dy * 1.9) +
+      (noiseAt(i + 7000) - 0.5) * 0.12;
     const radius = SHELL_RADIUS * (1 + relief);
     shellDir.set([dx, dy, dz], i * 3);
     shellBase.set([dx * radius, dy * radius, dz * radius], i * 3);
@@ -198,7 +201,7 @@ export function createOrb(canvas) {
   }
   shellPositions.set(shellBase);
 
-  const edges = buildSurfaceMesh(shellBase, SHELL_COUNT);
+  const edges = buildSurfaceMesh(shellDir, SHELL_COUNT);
   const edgePositions = new Float32Array(edges.length * 3);
   const edgeColors = new Float32Array(edges.length * 3);
   const positionAttribute = new THREE.BufferAttribute(edgePositions, 3);
@@ -251,7 +254,7 @@ export function createOrb(canvas) {
 
   // `hot` son las direcciones de los focos, `heatAmount` su intensidad.
   const hot = Array.from({ length: HOTSPOTS }, () => new THREE.Vector3(1, 0, 0));
-  const hotAmount = [1, 0.55, 0.4];
+  const hotAmount = [1.7, 0.7, 0.5];
   const hotPhase = [0.6, 3.2, 5.1];
   const hotPitch = [-0.35, 0.5, -0.1];
   let wanderClock = 0;
@@ -273,12 +276,12 @@ export function createOrb(canvas) {
     if (kind < 0.62) {
       dustSize[i] = 0.014 + n(1) * 0.012;
       dustFocus[i] = 1;
-    } else if (kind < 0.92) {
+    } else if (kind < 0.9) {
       dustSize[i] = 0.035 + n(1) * 0.03;
       dustFocus[i] = 0.75 + n(2) * 0.25;
     } else {
-      dustSize[i] = 0.11 + n(1) * 0.12;
-      dustFocus[i] = 0.02 + n(2) * 0.12;
+      dustSize[i] = 0.13 + n(1) * 0.17;
+      dustFocus[i] = 0.01 + n(2) * 0.08;
     }
     dustMode[i] = noiseAt(i + 3500) < 0.5 ? 0 : 1;
     dustSpeed[i] = 0.03 + n(3) * 0.09;
@@ -303,7 +306,7 @@ export function createOrb(canvas) {
   const fogMaterial = createPointMaterial({
     fog: true,
     blending: THREE.NormalBlending,
-    opacity: 0.16,
+    opacity: 0.3,
     minPx: 1,
   });
   const fog = createPointCloud(FOG_COUNT, fogMaterial);
@@ -315,14 +318,28 @@ export function createOrb(canvas) {
   for (let i = 0; i < FOG_COUNT; i += 1) {
     const [dx, dy, dz] = fibonacciDirection(i, FOG_COUNT);
     // Exponente > 1: mas manchas cerca del centro.
-    const radius = Math.pow(noiseAt(i + 5000), 1.6) * 0.5;
+    const radius = Math.pow(noiseAt(i + 5000), 2.2) * 0.55;
     fogBase.set([dx * radius, dy * radius, dz * radius], i * 3);
-    fogSize[i] = 0.9 - radius * 0.7 + noiseAt(i + 5500) * 0.3;
+    fogSize[i] = 1.1 - radius * 0.6 + noiseAt(i + 5500) * 0.3;
     fogPhase[i] = noiseAt(i + 6000) * Math.PI * 2;
-    const tone = 0.22 + noiseAt(i + 6500) * 0.1;
+    const tone = 0.27 + noiseAt(i + 6500) * 0.1;
     fogColor.set([tone * 1.15, tone * 0.85, tone * 0.62], i * 3);
   }
   fogPosition.set(fogBase);
+
+  // Resplandor de los focos: una mancha aditiva sobre cada uno, casi blanca
+  // en el principal, para que se lea como luz y no como aristas coloreadas.
+  const glowMaterial = createPointMaterial({
+    fog: true,
+    blending: THREE.AdditiveBlending,
+    opacity: 0.4,
+    minPx: 1,
+  });
+  const glow = createPointCloud(HOTSPOTS, glowMaterial);
+  const glowPosition = glow.geometry.attributes.position.array;
+  const glowSize = glow.geometry.attributes.aSize.array;
+  const glowColor = glow.geometry.attributes.aColor.array;
+  glowSize.set([0.42, 0.26, 0.2]);
 
   // Anillos concentricos finisimos: encuadran la figura sin competir.
   const ringMaterial = new THREE.LineBasicMaterial({
@@ -333,9 +350,9 @@ export function createOrb(canvas) {
   });
   const rings = new THREE.Group();
   [
-    [1.08, 0, 0],
-    [1.2, 0.12, 0.05],
-    [1.32, -0.08, 0.1],
+    [1.0, 0, 0],
+    [1.12, 0.12, 0.05],
+    [1.24, -0.08, 0.1],
   ].forEach(([radius, tiltX, tiltY]) => {
     const points = [];
     for (let s = 0; s < 160; s += 1) {
@@ -357,6 +374,7 @@ export function createOrb(canvas) {
   cloud.add(litLines);
   cloud.add(nodes);
   cloud.add(dust);
+  cloud.add(glow);
   scene.add(cloud);
 
   let state = 'idle';
@@ -389,9 +407,9 @@ export function createOrb(canvas) {
     // Pixeles por unidad de mundo a distancia 1: el tamano de las particulas
     // se expresa en unidades de la escena, no en pixeles.
     const scale = (clientHeight * pixelRatio) / (2 * Math.tan((camera.fov * Math.PI) / 360));
-    for (const material of [nodeMaterial, dustMaterial, fogMaterial]) {
+    for (const material of [nodeMaterial, dustMaterial, fogMaterial, glowMaterial]) {
       material.uniforms.uScale.value = scale;
-      material.uniforms.uMinPx.value = material === fogMaterial ? 1 : 1.5 * pixelRatio;
+      material.uniforms.uMinPx.value = material === fogMaterial || material === glowMaterial ? 1 : 1.5 * pixelRatio;
     }
   }
 
@@ -532,7 +550,7 @@ export function createOrb(canvas) {
 
       // Brillan mas cerca de la luz; una parte son blancas, el resto brasa.
       const near = Math.exp(-bestDistance * 3.5);
-      const glow = (0.5 + near * 1.5) * heat * (dustFocus[i] > 0.5 ? 1 : 0.7);
+      const glow = (0.5 + near * 1.5) * heat * (dustFocus[i] > 0.5 ? 1 : dustSize[i] > 0.1 ? 0.3 : 0.7);
       emberColor(glow, dustColor, i3, 1);
       if (dustTint[i] > 0.82) {
         dustColor[i3 + 1] = Math.min(1, dustColor[i3 + 1] + 0.3 * glow);
@@ -555,7 +573,16 @@ export function createOrb(canvas) {
       }
       fog.geometry.attributes.position.needsUpdate = true;
     }
-    fogMaterial.uniforms.uOpacity.value = 0.16 + 0.05 * drive * (state === 'speaking' ? 1 : 0);
+    fogMaterial.uniforms.uOpacity.value = 0.3 + 0.06 * drive * (state === 'speaking' ? 1 : 0);
+
+    for (let h = 0; h < HOTSPOTS; h += 1) {
+      glowPosition[h * 3] = hot[h].x * SHELL_RADIUS;
+      glowPosition[h * 3 + 1] = hot[h].y * SHELL_RADIUS;
+      glowPosition[h * 3 + 2] = hot[h].z * SHELL_RADIUS;
+      emberColor(hotAmount[h] * 0.9 * Math.min(1.4, heat * 1.5), glowColor, h * 3, 1);
+    }
+    glow.geometry.attributes.position.needsUpdate = true;
+    glow.geometry.attributes.aColor.needsUpdate = true;
 
     litMaterial.opacity = 0.9;
     ringMaterial.opacity = 0.14 + 0.06 * Math.min(1, heat);
@@ -613,8 +640,8 @@ export function createOrb(canvas) {
       stop();
       window.removeEventListener('resize', resize);
       document.removeEventListener('visibilitychange', onVisibility);
-      for (const object of [nodes, dust, fog, meshLines, litLines]) object.geometry.dispose();
-      for (const material of [nodeMaterial, dustMaterial, fogMaterial, meshMaterial, litMaterial, ringMaterial]) {
+      for (const object of [nodes, dust, fog, glow, meshLines, litLines]) object.geometry.dispose();
+      for (const material of [nodeMaterial, dustMaterial, fogMaterial, glowMaterial, meshMaterial, litMaterial, ringMaterial]) {
         material.dispose();
       }
       rings.children.forEach((ring) => ring.geometry.dispose());
