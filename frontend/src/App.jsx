@@ -50,7 +50,7 @@ export default function App() {
         }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--gap)', minHeight: 0 }}>
-          <div style={{ height: 440, flexShrink: 0 }}>
+          <div style={{ height: 'min(440px, 50vh)', flexShrink: 0 }}>
             <Orb state={state} level={level} />
           </div>
           <Chat messages={messages} onSend={send} error={error} />
